@@ -1,0 +1,105 @@
+import React, { useMemo } from 'react';
+import { Text, View } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import MapView, { Marker } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { RootStackParamList } from '../../navigation/types';
+import { useOrderStore } from '../../store/orderStore';
+import { useOrderRealtime } from '../../hooks/useOrderRealtime';
+import { useOrders } from '../../hooks/useOrders';
+import { PrimaryButton } from '../../components/ui/PrimaryButton';
+
+const STATUSES = [
+  { key: 'pending_broadcast', label: 'Recherche prestataire' },
+  { key: 'accepted', label: 'Prestataire disponible' },
+  { key: 'confirmed', label: 'Prestataire confirmé' },
+  { key: 'in_preparation', label: 'Préparation en cours' },
+  { key: 'assigned', label: 'Livreur en route' },
+  { key: 'in_delivery', label: 'En cours de livraison' },
+  { key: 'delivered', label: 'Livrée, en attente de confirmation' },
+  { key: 'completed', label: 'Commande terminée' },
+] as const;
+
+export function OrderTrackingScreen({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'OrderTracking'>) {
+  const { orderId } = route.params;
+  const { active, history } = useOrderStore();
+  const { confirmReception } = useOrders();
+  const order = useMemo(
+    () => active.order && active.order.id === orderId ? active.order : history.find((o) => o.id === orderId) ?? active.order,
+    [active.order, history, orderId],
+  );
+  useOrderRealtime(orderId);
+
+  const statusIndex = useMemo(() => STATUSES.findIndex((item) => item.key === order?.status), [order?.status]);
+  const courierPosition = useMemo(() => {
+    if (!order?.courier_latitude || !order?.courier_longitude) {
+      return null;
+    }
+    return {
+      latitude: order.courier_latitude,
+      longitude: order.courier_longitude,
+    };
+  }, [order?.courier_latitude, order?.courier_longitude]);
+
+  if (!order) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center bg-white" edges={['top', 'bottom']}>
+        <Text className="text-base text-neutral-600">Aucune commande active à suivre.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  const initialRegion = {
+    latitude: courierPosition?.latitude ?? order.courier_latitude ?? 5.3599517,
+    longitude: courierPosition?.longitude ?? order.courier_longitude ?? -4.0082563,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  };
+
+  return (
+    <SafeAreaView className="flex-1 bg-[#F7F7FB]" edges={['top', 'bottom']}>
+      <View className="h-72 w-full overflow-hidden">
+        <MapView
+          style={{ flex: 1 }}
+          initialRegion={initialRegion}
+          region={courierPosition ? { ...initialRegion, latitude: courierPosition.latitude, longitude: courierPosition.longitude } : undefined}
+        >
+          {courierPosition ? (
+            <Marker coordinate={courierPosition} title="Livreur" description="Position actuelle" />
+          ) : null}
+        </MapView>
+      </View>
+      <View className="flex-1 px-5 py-6">
+        <Text className="text-sm font-medium text-neutral-500">Commande #{order.id.slice(0, 6).toUpperCase()}</Text>
+        <Text className="mt-1 text-2xl font-semibold text-neutral-900">{order.product_name}</Text>
+        <Text className="mt-4 text-sm text-neutral-600">Suivi en temps réel</Text>
+        <View className="mt-4 space-y-4">
+          {STATUSES.map((item, index) => (
+            <View key={item.key} className="flex-row items-center">
+              <View className="mr-4 h-10 w-10 items-center justify-center rounded-full border-2 border-[#7B3FE4]">
+                <Text className="text-sm font-semibold text-[#7B3FE4]">{index + 1}</Text>
+              </View>
+              <View className="flex-1">
+                <Text className={`text-base ${index <= statusIndex ? 'font-semibold text-neutral-900' : 'text-neutral-400'}`}>
+                  {item.label}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+      <View className="border-t border-neutral-100 px-5 py-4">
+        {order.status === 'delivered' ? (
+          <PrimaryButton label="Confirmer réception" onPress={() => confirmReception(order.id)} />
+        ) : (
+          <PrimaryButton
+            label="Retour"
+            onPress={() => navigation.goBack()}
+            gradient={['#E5E7EB', '#E5E7EB']}
+            textClassName="text-neutral-800"
+          />
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}

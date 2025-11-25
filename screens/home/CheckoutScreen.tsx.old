@@ -1,0 +1,362 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { TextInput, Modal, ScrollView, Alert, Pressable, Text, View } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MainStackParamList } from '../../navigation/types';
+import { useCatalogStore } from '../../store/catalogStore';
+import { PrimaryButton } from '../../components/ui/PrimaryButton';
+import { formatCurrency, formatDistance } from '../../utils/format';
+import { PaymentMethod, PricingEstimate } from '../../types/models';
+import { supabase } from '../../lib/supabase';
+import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
+import { useOrderStore } from '../../store/orderStore';
+import { renderProductIcon } from 'components/home/iconMappings';
+import MapView, { Marker } from 'react-native-maps';
+
+const paymentMethods: Array<{ value: PaymentMethod; label: string; description: string }> = [
+  { value: 'cash_on_delivery', label: 'À la livraison', description: 'Réglez en espèces à la réception.' },
+  { value: 'mobile_money', label: 'Mobile Money', description: 'Paiement sécurisé via votre opérateur.' },
+];
+
+function computeFallbackEstimate(unitPrice: number, quantity: number, distanceKm = 2): PricingEstimate {
+  const productPrice = unitPrice * quantity;
+  let serviceFee = 200;
+  if (productPrice > 10000) {
+    serviceFee = 700;
+  } else if (productPrice > 5000) {
+    serviceFee = 400;
+  }
+  const deliveryFeeMin = distanceKm * 150;
+  const deliveryFeeMax = distanceKm * 300;
+  return {
+    product_price: productPrice,
+    service_fee: serviceFee,
+    delivery_fee: (deliveryFeeMin + deliveryFeeMax) / 2,
+    delivery_fee_min: deliveryFeeMin,
+    delivery_fee_max: deliveryFeeMax,
+    total_amount: productPrice + serviceFee, // + deliveryFee,
+    distance_km: distanceKm,
+  };
+}
+
+export function CheckoutScreenOld({ navigation, route }: NativeStackScreenProps<MainStackParamList, 'CheckoutOld'>) {
+  const { productId, quantity: initialQuantity = 1 } = route.params;
+  const { products } = useCatalogStore();
+  const { profile, user } = useSupabaseAuth();
+  const { setActiveOrder } = useOrderStore();
+  const product = useMemo(() => products.find((item) => item.id === productId), [products, productId]);
+  const [quantity, setQuantity] = useState(() => Math.min(Math.max(initialQuantity, 1), 10));
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash_on_delivery');
+  const [estimate, setEstimate] = useState<PricingEstimate | null>(null);
+  const [isEstimating, setIsEstimating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const increment = () => setQuantity((value) => Math.min(10, value + 1));
+  const decrement = () => setQuantity((value) => Math.max(1, value - 1));
+
+  useEffect(() => {
+    if (!product) {
+      return;
+    }
+    void (async () => {
+      try {
+        setIsEstimating(true);
+        const { data, error } = await supabase.functions.invoke<PricingEstimate>('pricing-estimate', {
+          body: {
+            product_id: product.id,
+            unit_price: product.price_regulated ?? product.base_price ?? 0,
+            quantity,
+            client_location: {
+              latitude: profile?.latitude,
+              longitude: profile?.longitude,
+            },
+          },
+        });
+        if (error || !data) {
+          setEstimate(computeFallbackEstimate(product.price_regulated ?? product.base_price ?? 0, quantity));
+          return;
+        }
+        setEstimate(data);
+      } catch (err) {
+        console.error('[Checkout] estimate error', err);
+        setEstimate(computeFallbackEstimate(product.price_regulated ?? product.base_price ?? 0, quantity));
+      } finally {
+        setIsEstimating(false);
+      }
+    })();
+  }, [product, quantity, profile?.latitude, profile?.longitude]);
+
+  if (!product) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center bg-white" edges={['top', 'bottom']}>
+        <Text className="text-base text-neutral-600">Produit introuvable.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  const handleConfirmOrder = async () => {
+    try {
+      if (!user) {
+        Alert.alert('Commande', 'Votre session a expiré, reconnectez-vous.');
+        return;
+      }
+      setIsSubmitting(true);
+      const productTotal = estimate?.product_price ?? (product.price_regulated ?? product.base_price ?? 0) * quantity;
+      const payload = {
+        client_id: profile?.id,
+        product_id: product.id,
+        product_name: product.name,
+        quantity,
+        unit_price: productTotal / quantity,
+        total_price: productTotal,
+        service_fee: estimate?.service_fee ?? 0,
+        delivery_fee: estimate?.delivery_fee ?? 0,
+        total_amount: estimate?.total_amount ?? 0,
+        payment_mode: paymentMethod,
+        status: 'pending_broadcast',
+        latitude: profile?.latitude,
+        longitude: profile?.longitude,
+        location_address: profile?.address,
+      };
+      const { data, error } = await supabase.from('orders').insert(payload).select().maybeSingle();
+      if (error || !data) {
+        throw error ?? new Error('Impossible de créer la commande.');
+      }
+      setActiveOrder({
+        id: data.id,
+        product_name: data.product_name,
+        quantity: data.quantity,
+        unit_price: Number(data.unit_price ?? 0),
+        total_price: Number(data.total_price ?? productTotal),
+        service_fee: Number(data.service_fee ?? 0),
+        delivery_fee: Number(data.delivery_fee ?? 0),
+        total_amount: Number(data.total_amount ?? 0),
+        payment_mode: data.payment_mode,
+        status: data.status,
+        created_at: data.created_at,
+      });
+      navigation.getParent()?.navigate('OrderTracking', { orderId: data.id });
+    } catch (error) {
+      console.error('[Checkout] confirmOrder error', error);
+      Alert.alert('Commande', 'Une erreur est survenue lors de la création de la commande.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <SafeAreaView className="flex-1 bg-[#F7F7FB]" edges={['top', 'bottom']}>
+      <View className="flex-1 justify-between px-5 py-6">
+        <View className="space-y-4">
+          <View className="rounded-3xl bg-white p-6 shadow-md items-center mb-4">
+            <View className="h-28 w-28 rounded-2xl bg-[#F4F0FF] items-center justify-center">
+              {renderProductIcon(product.subcategory_id ? product.subcategory_id : undefined, '#7B3FE4')}
+            </View>
+          </View>
+          <View className="rounded-3xl bg-white p-4 shadow-md mb-2">
+            <Text className="text-sm font-medium text-neutral-500">Produit</Text>
+            <View className="mt-2 flex-row items-center justify-between">
+              <View className="flex-1 pr-4">
+                <Text className="text-lg font-semibold text-neutral-900">{product.name}</Text>
+              </View>
+              <View className="flex-row items-center rounded-full bg-[#F4F0FF]">
+                <Text className="px-3 py-2 text-base" onPress={decrement}>
+                  −
+                </Text>
+                <Text className="px-3 py-2 text-base font-semibold">{quantity}</Text>
+                <Text className="px-3 py-2 text-base" onPress={increment}>
+                  +
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View className="rounded-3xl bg-white p-4 shadow-md mb-2">
+            <Text className="text-sm font-medium text-neutral-500">Coûts estimés</Text>
+            <View className="mt-3 space-y-2">
+              <Row label="Produit" value={formatCurrency(estimate?.product_price ?? 0)} />
+              <Row label="Frais de service" value={formatCurrency(estimate?.service_fee ?? 0)} />
+              <Row
+                label={`Livraison entre (${formatDistance(estimate?.distance_km ?? 0)})`}
+                value={`${estimate?.delivery_fee_min ?? 0} et ${estimate?.delivery_fee_max ?? 0} FCFA`}
+              />
+              {/* 
+              <View className="mt-2 border-t border-dashed border-neutral-200 pt-3">
+                <Row label="Total" value={formatCurrency(estimate?.total_amount ?? 0)} bold />
+              </View>
+              */}
+            </View>
+          </View>
+          <Pressable
+  onPress={() => setAddressModalVisible(true)}
+  className="rounded-3xl bg-white p-4 shadow-md"
+>
+  <Text className="text-sm font-medium text-neutral-500">Adresse de livraison</Text>
+
+  <View className="mt-2">
+    <Text className="text-base font-semibold text-neutral-900">
+      {selectedAddress?.label ?? profile?.address ?? "Choisir une adresse"}
+    </Text>
+    {selectedAddress?.distance_km && (
+      <Text className="text-sm text-neutral-500 mt-1">
+        {formatDistance(selectedAddress.distance_km)}
+      </Text>
+    )}
+  </View>
+</Pressable>
+
+          {/*
+          <View className="rounded-3xl bg-white p-4 shadow-md">
+            <Text className="text-sm font-medium text-neutral-500">Mode de paiement</Text>
+            <View className="mt-3 space-y-3">
+              {paymentMethods.map((method) => (
+                <Pressable
+                  key={method.value}
+                  className={`rounded-2xl border px-4 py-3 ${
+                    paymentMethod === method.value ? 'border-[#7B3FE4] bg-[#F8F5FF]' : 'border-neutral-100'
+                  }`}
+                  onPress={() => setPaymentMethod(method.value)}
+                >
+                  <Text className="text-base font-semibold text-neutral-900">{method.label}</Text>
+                  <Text className="mt-1 text-sm text-neutral-500">{method.description}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          */}
+        </View>
+        <PrimaryButton
+          label={isEstimating ? 'Calcul des frais...' : 'Publier la commande'}
+          onPress={handleConfirmOrder}
+          loading={isSubmitting}
+          disabled={isEstimating || isSubmitting || !estimate}
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <View className="flex-row items-center justify-between">
+      <Text className={`text-sm text-neutral-600 ${bold ? 'font-semibold text-neutral-900' : ''}`}>{label}</Text>
+      <Text className={`text-base ${bold ? 'font-semibold text-neutral-900' : 'text-neutral-800'}`}>{value}</Text>
+    </View>
+  );
+}
+
+function AddressModal({ visible, onClose, onSelect }) {
+  const [query, setQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [region, setRegion] = useState({
+    latitude: 5.347, 
+    longitude: -4.027,  
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+  });
+
+  async function searchPlaces(text) {
+    setQuery(text);
+    if (!text.trim()) return;
+
+    try {
+      setLoading(true);
+
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+        text
+      )}&key=GOOGLE_MAPS_KEY&language=fr&components=country:ci`;
+
+      const res = await fetch(url);
+      const json = await res.json();
+
+      setSuggestions(json.predictions || []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function pickSuggestion(place) {
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${
+      place.place_id
+    }&key=GOOGLE_MAPS_KEY`;
+
+    const res = await fetch(url);
+    const json = await res.json();
+
+    const loc = json.result.geometry.location;
+
+    const selected = {
+      label: place.description,
+      latitude: loc.lat,
+      longitude: loc.lng,
+    };
+
+    setRegion((r) => ({
+      ...r,
+      latitude: loc.lat,
+      longitude: loc.lng,
+    }));
+
+    onSelect(selected);
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View className="flex-1 bg-black/40" />
+
+      <View className="absolute bottom-0 left-0 right-0 h-[80%] bg-white rounded-t-3xl p-5">
+        <Text className="text-lg font-semibold text-neutral-900">Choisir une adresse</Text>
+
+        <View className="mt-4 flex-row items-center rounded-2xl border border-neutral-300 px-3">
+          <Pressable
+            className="mr-2"
+            onPress={() => {
+              navigator.geolocation.getCurrentPosition(({ coords }) => {
+                setRegion((r) => ({
+                  ...r,
+                  latitude: coords.latitude,
+                  longitude: coords.longitude,
+                }));
+
+                onSelect({
+                  label: 'Ma position actuelle',
+                  latitude: coords.latitude,
+                  longitude: coords.longitude,
+                });
+              });
+            }}
+          >
+            <Text>📍</Text>
+          </Pressable>
+
+          <TextInput
+            className="flex-1 py-3"
+            placeholder="Rechercher un lieu…"
+            value={query}
+            onChangeText={searchPlaces}
+          />
+        </View>
+
+        <ScrollView className="mt-3 max-h-40">
+          {suggestions.map((s) => (
+            <Pressable
+              key={s.place_id}
+              className="py-2 border-b border-neutral-100"
+              onPress={() => pickSuggestion(s)}
+            >
+              <Text>{s.description}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <View className="flex-1 mt-3 rounded-xl overflow-hidden">
+          <MapView style={{ flex: 1 }} region={region}>
+            <Marker coordinate={region} />
+          </MapView>
+        </View>
+
+        <PrimaryButton label="Valider" onPress={onClose} className="mt-4" />
+      </View>
+    </Modal>
+  );
+}
