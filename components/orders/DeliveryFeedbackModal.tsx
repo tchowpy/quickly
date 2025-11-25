@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -65,6 +65,7 @@ export function DeliveryFeedbackModal({
   visible,
   onClose,
   onSubmit,
+  defaultSentiment
 }: any) {
   const [tab, setTab] = useState<"provider" | "courier">("provider");
 
@@ -73,6 +74,20 @@ export function DeliveryFeedbackModal({
     courier: { rating: 0, tags: [] as string[], comment: "" },
   });
 
+  useEffect(() => {
+    if (!defaultSentiment ) return 
+    setFeedback({
+        provider: {
+            ...feedback.provider,
+            rating: defaultSentiment === 'positive' ? 4 : 1
+        },
+        courier: {
+            ...feedback.courier,
+            rating: defaultSentiment === 'positive' ? 4 : 1
+        }
+    })
+  }, [defaultSentiment]);
+  
   const toggleTag = (role: "provider" | "courier", tag: string) => {
     setFeedback((prev) => {
       const tags = prev[role].tags.includes(tag)
@@ -112,7 +127,7 @@ export function DeliveryFeedbackModal({
   const TAGS = FEEDBACK_TAGS[tab][sentiment];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}
     navigationBarTranslucent={true} statusBarTranslucent={false}
     >
       <View className="flex-1 justify-end bg-black/50">

@@ -16,7 +16,7 @@ export function OtpVerificationScreen({
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [countdown, setCountdown] = useState(60);
-  const { verifyOtp, signInWithPhone, loading, checkSession } = useSupabaseAuth();
+  const { addAccount, verifyOtp, signInWithPhone, loading, checkSession } = useSupabaseAuth();
 
   useEffect(() => {
     if (countdown <= 0) {
@@ -45,7 +45,11 @@ export function OtpVerificationScreen({
       return;
     }
 
-    SecureStorage.setItemAsync('phoneRegistered', profile.phone);
+    //SecureStorage.setItemAsync('phoneRegistered', profile.phone);
+    addAccount({
+        name: profile.full_name ?? '',
+        phone: profile.phone ?? ''
+      })
     navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
   };
 

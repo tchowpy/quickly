@@ -11,6 +11,7 @@ import { NavigationContainer } from '@react-navigation/native';
 export default function App() {
 
   return (
+    
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="dark" translucent={true}  />

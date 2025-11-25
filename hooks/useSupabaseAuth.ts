@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
-import { UserProfile } from '../types/models';
+import { Account, UserProfile } from '../types/models';
 
 import * as SecureStorage from 'expo-secure-store';
 
@@ -26,18 +26,10 @@ interface SignInResponse {
 }
 
 export function useSupabaseAuth() {
-  const { setSession, setUser, setProfile, setLoading, setBootstrapped, enableBiometrics } = useAuthStore();
+  const { setAccounts, setSession, setUser, setProfile, setLoading, setBootstrapped, enableBiometrics } = useAuthStore();
   const state = useAuthStore();
   const [phoneRegistered, setUserRegistered] = useState<string | null>(null);
   const [sessionState, setSessionState] = useState(-1);
-
-  const handleGetPhoneRegistered = async () => {
-    const phoneRegistered = await SecureStorage.getItemAsync('phoneRegistered');
-   // console.log('Retrieved phoneRegistered from storage:', phoneRegistered);
-    if (phoneRegistered) {
-      setUserRegistered(phoneRegistered);
-    }
-  }
   
   const signInWithPhone = useCallback(
     async (phone: string): Promise<SignInResponse> => {
@@ -194,8 +186,7 @@ export function useSupabaseAuth() {
   const checkSession = useCallback(async () => {
     setLoading(true);
 console.log('Checking session...');
-    await handleGetPhoneRegistered();
-
+ 
     const {
       data: { session },
       error,
@@ -220,6 +211,15 @@ console.log('Checking session...');
     setSessionState(1);
   }, [loadUserProfile, setLoading, setSession, setUser]);
 
+  const addAccount = useCallback(async (account: Account) => {
+    if (!state.accounts.some(acc => acc.phone === account.phone)) {
+      setAccounts([
+        ...state.accounts,
+        account
+      ]);
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     useAuthStore.getState().reset();
@@ -243,6 +243,7 @@ console.log('Checking session...');
     signOut,
     setBiometricEnabled: enableBiometrics,
     setSessionState,
+    addAccount,
   };
 }
 

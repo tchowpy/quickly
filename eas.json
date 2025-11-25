@@ -1,0 +1,31 @@
+{
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview2": {
+      "android": {
+        "gradleCommand": ":app:assembleRelease"
+      }
+    },
+    "preview3": {
+      "developmentClient": true
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./valsoria-pdv-firebase-adminsdk-qfr9g-2bdcbf094a.json",
+        "track": "internal"
+      },
+      "ios": {
+        "appleId": "ange@valsoria-holding.com",
+        "ascAppId": "1706714808",
+        "appleTeamId": "6RMGN9GA43"
+      }
+    }
+  }
+}

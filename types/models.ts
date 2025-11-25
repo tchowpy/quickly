@@ -83,6 +83,11 @@ export interface PricingEstimate {
   distance_km?: number;
 }
 
+export interface Account {
+  phone: string;
+  name: string;
+}
+
 export interface TrackingSummary {
     id: string;
     order_id: string;

@@ -10,6 +10,8 @@ import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { AuthStackParamList } from '../../navigation/types';
 
 import * as SecureStorage from 'expo-secure-store';
+import { ShoppingBag, User } from 'lucide-react-native';
+import { ActionRow } from 'components/ui/ActionRow';
 
 function sanitizePhone(phone: string) {
   return phone.replace(/\s+/g, '');
@@ -18,14 +20,20 @@ function sanitizePhone(phone: string) {
 export function PhoneNumberScreen({ navigation }: NativeStackScreenProps<AuthStackParamList, 'PhoneNumber'>) {
   const [phone, setPhone] = useState('+225');
   const [error, setError] = useState<string | undefined>();
+  const { addAccount } = useSupabaseAuth()
+  const { accounts } = useAuthStore()
+
   const { signInWithPhone, phoneRegistered, loading, profile, session, biometricEnabled, checkSession, bootstrapped } = useSupabaseAuth();
 
   useEffect(() => {
     const shouldCompleteProfile = session && !profile?.full_name;
     
     if (session && session.user.phone) {
-      SecureStorage.setItemAsync('phoneRegistered', session.user.phone);
-
+      //SecureStorage.setItemAsync('phoneRegistered', session.user.phone);
+      addAccount({
+        name: profile?.full_name ?? '',
+        phone: session.user.phone ?? ''
+      })
       if (shouldCompleteProfile) {
         navigation.getParent()?.getParent()?.navigate('Onboarding', { screen: 'ProfileSetup', params: { latitude: profile?.latitude, longitude: profile?.longitude, termsAccepted: profile?.consent_accepted } });
         return;
@@ -87,7 +95,11 @@ export function PhoneNumberScreen({ navigation }: NativeStackScreenProps<AuthSta
       return;
     }
     if (session) {
-      SecureStorage.setItemAsync('phoneRegistered', session.user.phone);
+      //SecureStorage.setItemAsync('phoneRegistered', session.user.phone);
+      addAccount({
+        name: session.user.full_name ?? '',
+        phone: session.user.phone ?? ''
+      })
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
       return;
     }
@@ -113,6 +125,19 @@ export function PhoneNumberScreen({ navigation }: NativeStackScreenProps<AuthSta
                 error={error}
                 helperText=""
               />
+            </View>
+
+            <View className="mt-8">
+              {accounts.map((item, index) => {
+              if (!item.phone || item.phone === "") return null
+              return <ActionRow
+                      key={index}
+                      icon={<User color="#7B3FE4" size={18} />}
+                      label={item.phone}
+                      description={item.name}
+                      onPress={() => setPhone(item.phone)}
+                    />
+              })}
             </View>
           </View>
           <PrimaryButton label="Valider" onPress={handleContinue} loading={loading} />

@@ -2,9 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Session, User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { Coords, UserProfile } from '../types/models';
+import { Account, Coords, UserProfile } from '../types/models';
 
 interface AuthState {
+  accounts: Account[] | [],
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
@@ -12,6 +13,7 @@ interface AuthState {
   loading: boolean;
   biometricEnabled: boolean;
   bootstrapped: boolean;
+  setAccounts: (accounts: Account[] | []) => void;
   setSession: (session: Session | null) => void;
   setUser: (user: User | null) => void;
   setProfile: (profile: UserProfile | null) => void;
@@ -25,6 +27,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
+      accounts: [],
       session: null,
       user: null,
       profile: null,
@@ -32,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
       loading: false,
       biometricEnabled: false,
       bootstrapped: false,
+      setAccounts: (accounts) => set({ accounts }),
       setSession: (session) => set({ session }),
       setUser: (user) => set({ user }),
       setProfile: (profile) => set({ profile }),
@@ -53,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
       name: 'quickly.auth',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
+        accounts: state.accounts,
         session: state.session,
         user: state.user,
         profile: state.profile,

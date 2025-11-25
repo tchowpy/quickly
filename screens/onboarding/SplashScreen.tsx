@@ -10,7 +10,7 @@ export function SplashScreen() {
       <SafeAreaView className="flex-1 items-center justify-center" edges={['top', 'bottom']}>
         <View className="items-center justify-center gap-6">
           <View className="h-32 w-32 items-center justify-center rounded-full bg-white/10">
-            <Image source={require('../../assets/icon.png')} className="h-24 w-24" resizeMode="contain" />
+            {/*<Image source={require('../../assets/icon.png')} className="h-24 w-24" resizeMode="contain" />*/}
           </View>
           <Text className="text-2xl font-bold text-white">Quickly</Text>
           <ActivityIndicator color="#fff" size="large" />

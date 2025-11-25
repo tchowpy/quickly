@@ -408,7 +408,7 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<MainStackParam
       case 'featured':
         return (
           <View className="mt-4 px-3">
-            {featuredProducts.map((product) => (
+            {featuredProducts.map((product, index) => (
               <FeaturedProductCard
                 key={product.id}
                 product={product}

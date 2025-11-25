@@ -9,6 +9,7 @@ import * as Location from 'expo-location';
 
 import * as SecureStorage from 'expo-secure-store';
 import { get } from 'react-native/Libraries/TurboModule/TurboModuleRegistry';
+import { useSupabaseAuth } from 'hooks/useSupabaseAuth';
 
 const termsText = `En utilisant Quickly, vous acceptez nos Conditions Générales d'Utilisation (CGU).
 
@@ -25,6 +26,7 @@ export function TermsConsentScreen({ navigation, route }: NativeStackScreenProps
   const [accepted, setAccepted] = useState(false);
   const [latitude, setLatitude] = useState<number | undefined>(undefined);
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
+  const { addAccount } = useSupabaseAuth()
 
   const getLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -45,7 +47,12 @@ export function TermsConsentScreen({ navigation, route }: NativeStackScreenProps
       return;
     }
   
-    SecureStorage.setItemAsync('phoneRegistered', phone);
+    //SecureStorage.setItemAsync('phoneRegistered', phone);
+    addAccount({
+      name: '',
+      phone: phone ?? ''
+    })
+    
     navigation.navigate('ProfileSetup', {
       latitude,
       longitude,
