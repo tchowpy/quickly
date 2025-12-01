@@ -47,10 +47,19 @@ export function useOrders() {
   const trackingMap = new Map();
   tracking?.forEach((t) => trackingMap.set(t.order_id, t));
 
+  // 2. GET FEEDBACKS ENTRIES
+  const { data: feedback } = await supabase
+    .from("order_feedbacks")
+    .select("*")
+    .in("order_id", orders.map((o) => o.id));
+
+  const feedbackMap = new Map();
+  feedback?.forEach((t) => feedbackMap.set(t.order_id, t));
   // 3. MERGE ORDER + TRACKING
   const mapped: OrderSummary[] = orders.map((o) => {
 
     const t = trackingMap.get(o.id);
+    const f = feedbackMap.get(o.id);
 
     return {
       id: o.id,
@@ -72,6 +81,7 @@ export function useOrders() {
       location_address: o.location_address,
       
       tracking: t,
+      feedback: f,
 
       // tracking livreur
       courier_latitude: t?.latitude ?? null,
@@ -118,7 +128,7 @@ export function useOrders() {
     if (statusRows) {
       updateStatusEvents(statusRows as OrderStatusEvent[]);
     }
-  }
+  } else {clearActiveOrder()}
 }, [profile?.id, setActiveOrder, setHistory, updateStatusEvents]);
 
     // -------------------------------------------------------------
@@ -176,13 +186,13 @@ export function useOrders() {
   const confirmReception = useCallback(
     async (orderId: string) => {
       try {
-        const { error: rpcError } = await supabase.rpc(
+        /*const { error: rpcError } = await supabase.rpc(
           "process_order_commission",
           { order_ref: orderId }
         );
         if (rpcError) {
           console.error("[Orders] confirmReception rpc error", rpcError);
-        }
+        }*/
 
         const { error } =  await supabase.functions.invoke("order-status-update", {
           body: {
@@ -214,8 +224,27 @@ export function useOrders() {
   // REPORT ISSUE
   // -------------------------------------------------------------
   const reportIssue = useCallback(
-    async (orderId: string, reason: string) => {
+    async (orderId: string, clientId: string, providerId: string, reason: string, details: string) => {
       try {
+        
+        const updatePayload = {
+          client_id: clientId,
+          provider_id: providerId,
+          reason: reason,
+          details: details,
+          status: 'pending'
+        }
+        const { data, error: err } = await supabase
+          .from("delivery_disputes")
+          .insert({
+            order_id: orderId,
+            ...updatePayload,
+          })
+          .select()
+          .single();
+
+        if (err) throw err;
+
         const { error } = await supabase
           .from("orders")
           .update({ status: "disputed" })
@@ -231,16 +260,40 @@ export function useOrders() {
           created_at: new Date().toISOString(),
         });
 
-        Alert.alert(
-          "Signalement envoyé",
-          "Notre équipe revient vers vous rapidement."
-        );
       } catch (error) {
         console.error("[Orders] reportIssue error", error);
         Alert.alert("Support", "Impossible de signaler le problème.");
       }
     },
     [addStatusEvent]
+  );
+
+   // -------------------------------------------------------------
+  // CONFIRM RECEPTION
+  // -------------------------------------------------------------
+  const orderClientFeedBack = useCallback(
+    async (orderId: string, clientId: string, product_rating: number, courier_rating: number, feedback_on_provider: string, feedback_on_courier: string) => {
+      try {
+
+        const { error } =  await supabase.functions.invoke("order-feedback", {
+          body: {
+              order_id: orderId,
+              actor_id: clientId,
+              actor_role: 'client',
+              product_rating,
+              courier_rating,
+              feedback_on_provider,
+              feedback_on_courier
+          },
+        });
+
+        if (error) throw error
+
+      } catch (error) {
+        console.error("[Orders] orderClientFeedBack error", error);
+      }
+    },
+    []
   );
 
   // -------------------------------------------------------------
@@ -282,6 +335,40 @@ const cancelOrder = useCallback(
     }
   },
   [clearActiveOrder, fetchOrders]
+);
+
+  // -------------------------------------------------------------
+  // CANCEL ORDER (MANUELLE OU AUTO)
+  // -------------------------------------------------------------
+const setAcceptOrder = useCallback(
+  async (orderId: string, message?: string) => {
+    try {
+      // 1️⃣ Mise à jour via l'Edge Function officielle
+      const { data, error } = await supabase.functions.invoke(
+        "order-status-update",
+        {
+          body: {
+            order_id: orderId,
+            status: "accepted",
+            note: "Recherche stoppée par le client",
+          },
+        }
+      );
+
+      if (error) {
+        console.error("[setAcceptOrder] edge function error:", error);
+        throw new Error("Edge function failed");
+      }
+
+      // 3️⃣ Rechargement de l’historique local
+      await fetchOrders();
+
+    } catch (e) {
+      console.error("[Orders] setAcceptOrder error", e);
+      Alert.alert("Erreur", "Impossible d'annuler la commande.");
+    }
+  },
+  [fetchOrders]
 );
 
 const expireOrder = useCallback(
@@ -506,6 +593,7 @@ const deliveryStatusUpdate = useCallback(
     confirmReception,
     reportIssue,
     cancelOrder, // 🔥 Important
+    setAcceptOrder,
     expireOrder,
     fetchOrderAccepts,
 
@@ -515,5 +603,7 @@ const deliveryStatusUpdate = useCallback(
     deliveryStatusUpdate,
     uploadDeliveryProof,
     setCourierPos,
+
+    orderClientFeedBack,
   };
 }

@@ -11,7 +11,7 @@ import {
   TouchableWithoutFeedback,
   Animated,
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import MapView, { Marker, Region, MapViewRef } from "components/map/ExpoMapView";
 import * as Location from "expo-location";
 import { PrimaryButton } from "../ui/PrimaryButton";
 
@@ -48,35 +48,6 @@ const PinSVG = ({ scale }: PinSVGProps) => (
 );
 
 // ---------------------------------------------------------------
-// BLUE DOT — POSITION ACTUELLE DU CLIENT
-// ---------------------------------------------------------------
-const BlueDot = () => (
-  <View style={{ alignItems: "center", justifyContent: "center" }}>
-    {/* Halo */}
-    <View
-      style={{
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: "rgba(66,133,244,0.25)",
-        position: "absolute",
-      }}
-    />
-    {/* Dot */}
-    <View
-      style={{
-        width: 14,
-        height: 14,
-        borderRadius: 7,
-        backgroundColor: "#4285F4",
-        borderWidth: 3,
-        borderColor: "white",
-      }}
-    />
-  </View>
-);
-
-// ---------------------------------------------------------------
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -99,7 +70,7 @@ export default function DeliveryAddressModal({
   initialLongitude,
   initialAddress,
 }: Props) {
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapViewRef | null>(null);
   const { geoloc } = useAuthStore();
 
   const [search, setSearch] = useState("");
@@ -113,6 +84,10 @@ export default function DeliveryAddressModal({
 
   const [mapDelta, setMapDelta] = useState(0.01);
   const [hasFocus, setHasFocus] = useState(false);
+  const regionChangeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDraggedRegion = useRef<Region | null>(null);
+  const lastAppliedRegion = useRef<{ latitude: number; longitude: number } | null>(null);
+  const REGION_UPDATE_DELAY = 400;
 
   // PIN ANIMATION
   const pinScale = useRef(new Animated.Value(1)).current;
@@ -156,6 +131,14 @@ export default function DeliveryAddressModal({
 
     }, 200);
   }, [visible]);
+
+  useEffect(() => {
+    return () => {
+      if (regionChangeTimeout.current) {
+        clearTimeout(regionChangeTimeout.current);
+      }
+    };
+  }, []);
 
   // ---------------------------------------------------------------
   // AUTOCOMPLÉTION INTELLIGENTE
@@ -217,7 +200,7 @@ export default function DeliveryAddressModal({
         latitudeDelta: mapDelta,
         longitudeDelta: mapDelta,
       },
-      300
+      500
     );
 
     animatePin();
@@ -246,12 +229,36 @@ export default function DeliveryAddressModal({
   // ---------------------------------------------------------------
   // MOUVEMENT DE LA CARTE
   // ---------------------------------------------------------------
-  const onRegionChangeComplete = (region: Region) => {
+  const applyRegionUpdate = (region: Region) => {
     const { latitude, longitude } = region;
+    const lastRegion = lastAppliedRegion.current;
 
+    if (lastRegion) {
+      const latDiff = Math.abs(lastRegion.latitude - latitude);
+      const lonDiff = Math.abs(lastRegion.longitude - longitude);
+
+      if (latDiff < 0.00005 && lonDiff < 0.00005) {
+        return;
+      }
+    }
+
+    lastAppliedRegion.current = { latitude, longitude };
     setSelectedLocation({ latitude, longitude });
     reverseGeocode(latitude, longitude);
     animatePin();
+  };
+
+  const onRegionChangeComplete = (region: Region) => {
+    lastDraggedRegion.current = region;
+
+    if (regionChangeTimeout.current) {
+      clearTimeout(regionChangeTimeout.current);
+    }
+
+    regionChangeTimeout.current = setTimeout(() => {
+      if (!lastDraggedRegion.current) return;
+      applyRegionUpdate(lastDraggedRegion.current);
+    }, REGION_UPDATE_DELAY);
   };
 
   // ---------------------------------------------------------------
@@ -268,7 +275,7 @@ export default function DeliveryAddressModal({
           latitudeDelta: mapDelta,
           longitudeDelta: mapDelta,
         },
-        300
+        400
       );
 
       animatePin();
@@ -328,18 +335,21 @@ console.log('Selected location:', selectedLocation, selectedAddress);
   // ---------------------------------------------------------------
   return (
     <Modal visible={visible} animationType="slide" transparent navigationBarTranslucent={true} statusBarTranslucent={false}>
-      <TouchableWithoutFeedback
-        onPress={() => {
-          setHasFocus(false);
-          Keyboard.dismiss();
-          setSuggestions([]);
-        }}
-      >
-        <View className="flex-1 bg-black/20 justify-end">
-          <View className="bg-white rounded-t-3xl px-5 pt-5 pb-8 max-h-[95%]">
+      <View className="flex-1 bg-black/20 justify-end">
+        <TouchableWithoutFeedback
+          onPress={() => {
+            setHasFocus(false);
+            Keyboard.dismiss();
+            setSuggestions([]);
+          }}
+        >
+          <View className="flex-1" />
+        </TouchableWithoutFeedback>
+
+        <View className="bg-white rounded-t-3xl px-5 pt-5 pb-8 max-h-[95%]" style={{ paddingBottom: 50 }}>
 
             <Text className="text-xl font-semibold text-neutral-900 mb-4">
-              Sélectionner l'adresse de livraison
+              Sélectionner une adresse
             </Text>
 
             {/* SEARCH FIELD */}
@@ -445,11 +455,11 @@ console.log('Selected location:', selectedLocation, selectedAddress);
                 {/* BLUE DOT = Position actuelle du client */}
                 {currentLocation && (
                   <Marker
+                    identifier="current-location"
                     coordinate={currentLocation}
-                    anchor={{ x: 0.5, y: 0.5 }}
-                  >
-                    <BlueDot />
-                  </Marker>
+                    pinColor="#4285F4"
+                    title="Votre position"
+                  />
                 )}
               </MapView>
 
@@ -497,7 +507,6 @@ console.log('Selected location:', selectedLocation, selectedAddress);
             </View>
           </View>
         </View>
-      </TouchableWithoutFeedback>
     </Modal>
   );
 }

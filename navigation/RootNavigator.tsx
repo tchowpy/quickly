@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { NavigationContainer } from '@react-navigation/native';
 import { SplashScreen } from '../screens/onboarding/SplashScreen';
 import { PhoneNumberScreen } from '../screens/onboarding/PhoneNumberScreen';
 import { OtpVerificationScreen } from '../screens/onboarding/OtpVerificationScreen';
@@ -90,20 +89,18 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        {/* === GATE QUI DÉCIDE D’OÙ ALLER === */}
-        <RootStack.Screen name="AuthGate" component={AuthGate} />
-        
-        {/* === STACKS TOUJOURS MONTÉS === */}
-        <RootStack.Screen name="Auth" component={AuthStackNavigator} />
-        <RootStack.Screen name="Onboarding" component={OnboardingStackNavigator} />
-        <RootStack.Screen name="Main" component={MainStackNavigator} />
+    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      {/* === GATE QUI DÉCIDE D’OÙ ALLER === */}
+      <RootStack.Screen name="AuthGate" component={AuthGate} />
 
-        {/* === AUTRES SCREENS === */}
-        
-        <RootStack.Screen name="Support" component={SupportScreen} />
-      </RootStack.Navigator>
-    </NavigationContainer>
+      {/* === STACKS TOUJOURS MONTÉS === */}
+      <RootStack.Screen name="Auth" component={AuthStackNavigator} />
+      <RootStack.Screen name="Onboarding" component={OnboardingStackNavigator} />
+      <RootStack.Screen name="Main" component={MainStackNavigator} />
+
+      {/* === AUTRES SCREENS === */}
+
+      <RootStack.Screen name="Support" component={SupportScreen} />
+    </RootStack.Navigator>
   );
 }

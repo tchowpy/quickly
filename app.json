@@ -12,7 +12,14 @@
     "plugins": [
       "expo-video",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-maps",
+        {
+          "requestLocationPermission": true,
+          "locationPermission": "Allow $(PRODUCT_NAME) to use your location"
+        }
+      ]
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,9 +32,13 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "scheme": "assurapp",
+    "scheme": "quickly",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tchowpy.quickly",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -36,9 +47,16 @@
       },
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.tchowpy.quickly"
+      "package": "com.tchowpy.quickly",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDYtnAfKCFyyb9zChBDlw9F9wQ9JoIwvAc"
+        }
+      }
     },
     "extra": {
       "eas": {

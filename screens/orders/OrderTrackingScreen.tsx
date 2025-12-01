@@ -8,6 +8,7 @@ import MapSection from "components/orders/MapSection";
 import BottomSheetContent from "components/orders/BottomSheetContent";
 import { FullMapSection } from "components/orders/FullMapSection";
 import { getOrderMode } from "utils/orderMode";
+import LoadingQuickLy from "components/ui/Loading";
 
 export function OrderTrackingScreen({
   navigation,
@@ -37,11 +38,9 @@ export function OrderTrackingScreen({
     }
   }, [order?.status]);
 
-  if (!order) {
+  if (!order || getOrderMode(order.status) !== 'tracking') {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center">
-        <Text>Aucune commande active.</Text>
-      </SafeAreaView>
+      <LoadingQuickLy/>
     );
   }
 

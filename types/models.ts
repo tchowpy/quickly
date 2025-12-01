@@ -133,6 +133,20 @@ export interface OrderSummary {
   provider?: UserProfile | null;
   courier?: UserProfile | null;
   
+  feedback?: {
+    id: string;
+    order_id: string;
+    client_id: string;
+    provider_id: string;
+    product_rating: number;
+    client_rating: number;
+    courier_rating: number;
+    feedback_on_client: string;
+    feedback_on_provider: string;
+    feedback_on_courier: string;
+    created_at: string;
+  },
+
   tracking?: {
     id: string;
     order_id: string;

@@ -39,7 +39,7 @@ export function LocationPermissionScreen({
 
   return (
     <LinearGradient colors={["#7B3FE4", "#3FE47B"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} className="flex-1">
-    <SafeAreaView className="flex-1 items-center justify-center" edges={['top', 'bottom']} >
+    <SafeAreaView className="flex-1 items-center justify-center" edges={['top']} >
         <View className="flex-1 justify-between px-6 py-12">
           <View>
             <Text className="mt-3 text-3xl font-semibold text-white">Activer la localisation</Text>

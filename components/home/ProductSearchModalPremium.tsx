@@ -89,6 +89,7 @@ export default function ProductSearchModalPremium({
             >
               {categories.map((item) => (
                 <CategoryPill
+                    key={item.id}
                     category={item}
                     icon={renderCategoryIcon(item.name)}
                     active={categoryFilter === item.id}
@@ -112,6 +113,7 @@ export default function ProductSearchModalPremium({
               }}
               renderItem={({ item }) => (
                 <Pressable
+                  key={item.id}
                   onPress={() => onSelectProduct(item.id)}
                   className="bg-[#F9FAFB] rounded-3xl p-3 items-center"
                   style={{ width: '31%' }}

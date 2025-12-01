@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, Profiler } from 'react';
 import { ScrollView, Alert, Text, View, Pressable } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,8 +13,13 @@ import { DeliveryFeedbackModal } from 'components/orders/DeliveryFeedbackModal';
 import { DeliveryDisputeModal } from 'components/orders/DeliveryDisputeModal';
 
 import { ThumbsUp, ThumbsDown } from "lucide-react-native";
+import { ProviderCard } from 'components/orders/ProviderCard';
+import { useOrderTrackingController } from 'hooks/useOrderTrackingController';
+import { useAuthStore } from 'store/authStore';
+import { formatFeedbackText } from 'utils';
 
 const STATUSES = [
+   { key: 'broadcasted', label: 'Recherche de prestataires' },
   { key: 'accepted', label: 'Prestataires trouvés' },
   { key: 'confirmed', label: 'Vous avez confirmé la commande' },
   { key: 'in_preparation', label: 'Commande en cours de préparation' },
@@ -28,8 +33,10 @@ const STATUSES = [
 
 export function OrderDetailsScreen({ navigation, route }: NativeStackScreenProps<MainStackParamList, 'OrderDetails'>) {
   const { orderId } = route.params;
+    const { profile } = useAuthStore();
   const { history, active } = useOrderStore();
-  const { confirmReception } = useOrders();
+  const { confirmReception, orderClientFeedBack, reportIssue } = useOrders();
+  const {onCall} = useOrderTrackingController(orderId);
 
   const order = useMemo(() => history.find((item) => item.id === orderId) ?? active.order, [active.order, history, orderId]);
 
@@ -60,6 +67,47 @@ export function OrderDetailsScreen({ navigation, route }: NativeStackScreenProps
     navigation.getParent()?.navigate('Support', { orderId: order.id });
   };
 
+  const handleFeedback = async (data) => {
+    if (!profile) return
+
+    try {
+      const feddbackOnProvider = formatFeedbackText(data.provider)
+      const feddbackOnCourier = formatFeedbackText(data.courier)
+      await orderClientFeedBack(order.id, profile?.id, data.provider.rating, data.courier.rating, feddbackOnProvider,feddbackOnCourier)
+
+      Alert.alert("Merci ✨", "Pour votre avis. Votre retour est précieux pour améliorer nos services.");
+
+    } catch (error) {
+      
+    } finally{}
+    
+    setTimeout(() => {
+      navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+      }, 300);
+    }
+
+    const handleDispute = async (data) => {
+    if (!profile || !order.provider_id) return
+
+    try {
+
+      const tagsText = data.provider.tags.map(t => `- ${t}`).join("\n");
+      await reportIssue(order.id, profile?.id, order.provider_id, tagsText, data.provider.comment)
+
+      Alert.alert(
+        "Signalement envoyé",
+        "Notre équipe revient vers vous rapidement."
+      );
+
+    } catch (error) {
+      
+    } finally{}
+    
+    setTimeout(() => {
+      navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+      }, 300);
+    }
+
   return (
     <SafeAreaView className="flex-1 bg-[#F7F7FB]" edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
@@ -87,11 +135,17 @@ export function OrderDetailsScreen({ navigation, route }: NativeStackScreenProps
             {statusLabel}
           </Text>
         </View>
+        {order.provider && (
+            <View className='mt-4'>
+              {/*<Text className="mt-4 mb-1 text-neutral-500">Fournisseur</Text>*/}
+              <ProviderCard user={order.provider} onCall={['completed','disputed','cancelled','expired'].includes(order.status) ? undefined : onCall} onNavigate={undefined} />
+            </View>
+        )}
         {/* Choix du sentiment */}
-        {order.status === 'completed' && (
+        {(!order.feedback || (order.feedback.product_rating === 0 &&  order.feedback.courier_rating === 0)) && order.status === 'completed' && (
           <>
           <View className="items-center mt-6">
-          <Text className="text-neutral-500mb-2 mt-6">Évaluez la prestation</Text>
+          <Text className="text-lg text-neutral-900 font-bold mb-2 mt-2">Évaluez la prestation</Text>
           </View>
           <View className="flex-row justify-around items-center mt-4 mb-6">
             <Pressable
@@ -139,7 +193,9 @@ export function OrderDetailsScreen({ navigation, route }: NativeStackScreenProps
         {['delivered', 'in_delivery'].includes(order.status) ? (
           <PrimaryButton label="Confirmer la réception" onPress={() => setDeliveryReceptionModalVisible(true)} //onPress={() => confirmReception(order.id)} 
           />
-        ) : (
+        ) : getOrderMode(order.status) === 'finished' ? (
+          <></>
+        ):(
           <PrimaryButton
             label="Suivre la commande"
             onPress={() => {
@@ -187,6 +243,7 @@ export function OrderDetailsScreen({ navigation, route }: NativeStackScreenProps
         }
         onSubmit={(data) => {
           console.log("Feedback complet :", data);
+          handleFeedback(data)
           // TODO: sauvegarder dans Supabase vie un edge Function
         }}
       />
@@ -195,6 +252,7 @@ export function OrderDetailsScreen({ navigation, route }: NativeStackScreenProps
         onClose={() => setShowDispute(false)}
         onSubmit={(data) => {
           console.log("Dispute complet :", data);
+          handleDispute(data)
           // TODO: sauvegarder dans Supabase vie un edge Function
         }}
       />

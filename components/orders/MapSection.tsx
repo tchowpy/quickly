@@ -1,5 +1,5 @@
 import React from "react";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline } from "components/map/ExpoMapView";
 import { View } from "react-native";
 
 export default function MapSection({

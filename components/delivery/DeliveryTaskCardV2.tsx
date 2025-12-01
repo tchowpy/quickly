@@ -281,7 +281,7 @@ export function DeliveryTaskCardV2({
   onRequestClose={() => setProofModalVisible(false)}
 >
   <View className="flex-1 bg-black/40 justify-end">
-    <View className="bg-white p-5 rounded-t-3xl">
+    <View className="bg-white p-5 rounded-t-3xl" style={{paddingBottom:50}}>
       <Text className="text-lg font-bold text-neutral-900">
         Preuve de livraison
       </Text>

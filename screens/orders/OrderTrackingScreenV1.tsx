@@ -12,7 +12,7 @@ import {
   Dimensions,
   ScrollView
 } from "react-native";
-import MapView, { Marker, Polyline, Region } from "react-native-maps";
+import MapView, { Marker, Polyline, Region, MapViewRef } from "components/map/ExpoMapView";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../../navigation/types";
@@ -94,7 +94,7 @@ export function OrderTrackingScreen({ navigation, route }: NativeStackScreenProp
 
   const [estimatedArrival, setEstimatedArrival] = useState<string | null>(null);
 
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapViewRef | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const navigationLocked = useRef(false);
@@ -673,4 +673,3 @@ function StepCol({ currentStep }: { currentStep: number }) {
     </View>
   );
 }
-

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Modal, Text, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker } from 'components/map/ExpoMapView';
 import { PrimaryButton } from '../ui/PrimaryButton';
 import { useOrderStore } from '../../store/orderStore';
 import { useOrders } from '../../hooks/useOrders';
@@ -57,7 +57,7 @@ export function OrderTrackingModal({ visible, onClose }: OrderTrackingModalProps
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} navigationBarTranslucent={true} statusBarTranslucent={false}>
       <View className="flex-1 justify-end bg-black/40">
-        <View className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-8 pt-6 shadow-xl">
+        <View className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-8 pt-6 shadow-xl" style={{paddingBottom:50}}>
           <View className="mb-4 h-1 w-12 self-center rounded-full bg-neutral-300" />
           <Text className="text-2xl font-semibold text-neutral-900">Suivi de livraison</Text>
           {activeOrder ? (

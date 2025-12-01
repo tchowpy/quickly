@@ -8,6 +8,8 @@ import { PrimaryButton } from '../../components/ui/PrimaryButton';
 import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { OnboardingStackParamList } from '../../navigation/types';
 import { MapPin } from 'lucide-react-native';
+import DeliveryAddressCard from 'components/checkout/DeliveryAddressCard';
+import DeliveryAddressModal from 'components/checkout/DeliveryAddressModal';
 
 export function ProfileSetupScreen({
   navigation,
@@ -27,6 +29,15 @@ export function ProfileSetupScreen({
     latitude: initialLatitude ?? undefined,
     longitude: initialLongitude ?? undefined,
   });
+
+  // Address management
+  const [addressModalVisible, setAddressModalVisible] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<{
+    label: string;
+    latitude: number;
+    longitude: number;
+  } | null>({label: profile?.address ?? '', latitude: initialLatitude ?? 0, longitude: initialLongitude ?? 0});
+
   const [addressLoading, setAddressLoading] = useState(false);
 
   const ensureLocationPermission = async () => {
@@ -109,9 +120,9 @@ export function ProfileSetupScreen({
     setLoading(true);
     const { error } = await upsertProfile({
       full_name: fullName.trim(),
-      address: address.trim(),
-      latitude: coords.latitude,
-      longitude: coords.longitude,
+      address: selectedAddress?.label.trim(),
+      latitude: selectedAddress?.latitude,
+      longitude: selectedAddress?.longitude,
       phone: user.phone ?? '',
       consent_accepted: termsAccepted,
     });
@@ -134,19 +145,38 @@ export function ProfileSetupScreen({
             </Text>
             <View className="mt-8 space-y-5">
               <TextField label="Nom complet" value={fullName} onChangeText={setFullName} autoCapitalize="words" />
-              <TextField
+              {/*<TextField
                 label="Adresse (facultatif)"
                 value={address}
                 onChangeText={setAddress}
                 placeholder="Ex: Cocody Angré 8ème tranche"
                 rightIcon={<MapPin color="#7B3FE4" size={18} />}
                 onRightIconPress={fillAddressFromLocation}
+              />*/}
+              {/** DELIVERY ADDRESS */}
+              <View className="mt-2">
+              <DeliveryAddressCard
+                address={selectedAddress?.label ?? profile?.address}
+                onPress={() => setAddressModalVisible(true)}
               />
+              </View>
             </View>
           </View>
           <PrimaryButton label="Continuer" onPress={handleContinue} loading={loading} />
         </View>
       </KeyboardAvoidingView>
+      {/** ADDRESS MODAL */}
+      <DeliveryAddressModal
+        visible={addressModalVisible}
+        onClose={() => setAddressModalVisible(false)}
+        //onSelect={(addr) => setSelectedAddress(addr)}
+        onValidate={(data) => {
+            console.log("Adresse validée :", data);
+            setSelectedAddress({label: data.address, latitude: data.latitude, longitude: data.longitude});
+        }}
+        initialLatitude={selectedAddress?.latitude}
+        initialLongitude={selectedAddress?.longitude}
+      />
     </SafeAreaView>
   );
 }

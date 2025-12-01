@@ -240,6 +240,7 @@ export function CheckoutScreen({
         }}
         initialLatitude={selectedAddress?.latitude}
         initialLongitude={selectedAddress?.longitude}
+        initialAddress={selectedAddress?.label}
       />
     </SafeAreaView>
   );

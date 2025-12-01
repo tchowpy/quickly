@@ -1,5 +1,5 @@
 import React from "react";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline } from "components/map/ExpoMapView";
 import { View } from "react-native";
 import { OrderSummary, UserProfile } from "types/models";
 
@@ -40,7 +40,7 @@ export function FullMapSection(
     console.log('interpolatedCourierPosition ',interpolatedCourierPosition)
     console.log('providerRoute ',providerRoute)
     return (
-    <View style={{ height: "60%" }}>
+    <View style={{ height: "80%" }}>
     <MapView
         ref={mapRef}
         style={{ flex: 1 }}
@@ -59,7 +59,7 @@ export function FullMapSection(
         />
 
         {/* Client GPS */}
-        {clientPos && <Marker coordinate={clientPos} pinColor="green" />}
+        {/*clientPos && <Marker coordinate={clientPos} pinColor="green" />*/}
 
         {/* Provider route */}
         {order.status !== 'assigned' && providerRoute.length > 0 && (

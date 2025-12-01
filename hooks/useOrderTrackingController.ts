@@ -10,6 +10,7 @@ import { useOrderRealtime } from "./useOrderRealtime";
 import { getRouteFromORS } from "services/location/routeService";
 import { computeETA } from "utils/eta";
 import { useAuthStore } from "store/authStore";
+import type { MapViewRef } from "components/map/ExpoMapView";
 
 export function useOrderTrackingController(orderId: string) {
   const { active, history } = useOrderStore();
@@ -32,8 +33,8 @@ export function useOrderTrackingController(orderId: string) {
   // -------------------------------------------------------------------
   // MAP refs
   // -------------------------------------------------------------------
-  const mapRef = useRef(null);
-
+  const mapRef = useRef<MapViewRef | null>(null);
+//console.log('order?.courier ',order?.courier)
   // -------------------------------------------------------------------
   // States
   // -------------------------------------------------------------------
@@ -163,7 +164,7 @@ export function useOrderTrackingController(orderId: string) {
     const distKm = order.status === 'assigned' ? (km + Number(provider?.distance_km ?? 0)).toFixed(2) : km;
 
     setCourier({
-      ...(courier ?? {}),
+      ...(order?.courier ?? {}),
       latitude: newPos.latitude,
       longitude: newPos.longitude,
       distance_km: distKm,

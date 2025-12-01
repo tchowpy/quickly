@@ -49,7 +49,7 @@ export function SingleSelectModalFlexible({
       </TouchableWithoutFeedback>
 
       {/* Contenu */}
-      <View className="absolute inset-x-0 bottom-0 max-h-[80%] bg-white rounded-t-3xl px-5 py-6">
+      <View className="absolute inset-x-0 bottom-0 max-h-[80%] bg-white rounded-t-3xl px-5 py-6" style={{paddingBottom:50}}>
         {/* Handle */}
         <View className="items-center mb-4">
           <View className="h-1.5 w-12 rounded-full bg-neutral-300" />

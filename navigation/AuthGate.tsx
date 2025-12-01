@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SplashScreen } from '../screens/onboarding/SplashScreen';
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
 import { useAuthStore } from 'store/authStore';
+import { RootStackParamList } from './types';
 
-export function AuthGate() {
-  const navigation = useNavigation();
+type Props = NativeStackScreenProps<RootStackParamList, 'AuthGate'>;
+
+export function AuthGate({ navigation }: Props) {
   const { accounts } = useAuthStore();
 
   const {

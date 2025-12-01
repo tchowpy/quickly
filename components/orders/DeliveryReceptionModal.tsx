@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { X } from "lucide-react-native";
 
@@ -15,15 +16,21 @@ export function DeliveryReceptionModal({
   onConfirmReceived,
   onNotReceived,
 }) {
-  const [selected, setSelected] = useState<"received" | "not_received" | null>(null);
+  const [selected, setSelected] = useState<"received" | "not_received" | null>("received");
 
   return (
     <Modal visible={visible} 
     transparent animationType="slide"
     navigationBarTranslucent={true} statusBarTranslucent={false}
+    onRequestClose={onClose}
+    allowSwipeDismissal={true}
+    onDismiss={onClose}
+    onBlur={onClose}
     >
-      <View className="flex-1 bg-black/40 justify-end">
-        <View className="bg-white rounded-t-3xl p-5 max-h-[85%]">
+      <TouchableWithoutFeedback >
+        <View className="flex-1 justify-end bg-black/40">
+          <TouchableWithoutFeedback>
+          <View className="bg-white rounded-t-3xl p-5 max-h-[85%]" style={{paddingBottom:50}}>
           
           {/* HEADER */}
           <View className="flex-row justify-between items-center mb-4">
@@ -47,7 +54,7 @@ export function DeliveryReceptionModal({
               }`}
             >
               <Text className="text-base text-neutral-800 font-medium">
-                Je n'ai pas encore reçu ma commande.
+                Signaler un problème
               </Text>
             </TouchableOpacity>
 
@@ -75,7 +82,7 @@ export function DeliveryReceptionModal({
                   ✔ Assurez-vous que la commande correspond à ce que vous avez acheté.
                 </Text>
                 <Text className="text-red-500">
-                  ✘ En cas de problème, ne confirmez pas la réception et contactez le support.
+                  ✘ En cas de problème, ne confirmez pas la réception, remettez le colis au livreur et faites le savoir au fournisseur.
                 </Text>
               </View>
             )}
@@ -107,7 +114,9 @@ export function DeliveryReceptionModal({
             )}
           </View>
         </View>
+        </TouchableWithoutFeedback>
       </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }

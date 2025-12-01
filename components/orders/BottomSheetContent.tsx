@@ -16,6 +16,41 @@ const STATUSES = [
   { key: 'completed', label: 'Commande terminée' },
 ] as const;
 
+const DELIVERY_STATUSES = [
+  {
+    key: "pending",
+    label: "Vous avez confirmé la commande", //"La commande est en attente de traitement",
+  },
+  {
+    key: "rejected",
+    label: "La commande a été rejetée",
+  },
+  {
+    key: "assigned",
+    label: "Un livreur a été assigné pour récupérer la commande",
+  },
+  {
+    key: "retrieved",
+    label: "Le livreur a récupéré la commande",
+  },
+  {
+    key: "in_transit",
+    label: "Le livreur est en route vers le lieu de livraison",
+  },
+  {
+    key: "at_destination",
+    label: "Votre livreur est arrivé",
+  },
+  {
+    key: "delivered",
+    label: "La commande a été livrée, en attente de confirmation du client",
+  },
+  {
+    key: "failed",
+    label: "La livraison a échoué",
+  },
+] as const;
+
 export default function BottomSheetContent({
   order,
   provider,
@@ -25,15 +60,20 @@ export default function BottomSheetContent({
   onConfirmReception,
 }) {
 
+
+  const deliveryStatusIndex = useMemo(() => DELIVERY_STATUSES.findIndex((item) => item.key === order?.tracking?.status), [order?.tracking?.status]);
   const statusIndex = useMemo(() => STATUSES.findIndex((item) => item.key === order?.status), [order?.status]);
-  const statusLabel = useMemo(() => STATUSES[statusIndex].label, [statusIndex])
-  
+  const statusLabel = useMemo(() => {
+    return (["assigned", "in_delivery"].includes(STATUSES[statusIndex].key)) ? DELIVERY_STATUSES[deliveryStatusIndex].label : STATUSES[statusIndex].label
+  }, [statusIndex, deliveryStatusIndex])
+
+  console.log("statusLabel", statusLabel)
   return (
     <BottomSheet snapPoints={["65%", "85%"]} backgroundStyle={{ borderRadius: 28 }}>
       <BottomSheetScrollView style={{ padding: 20 }}>
         {/* TITRE */}
             <View className="flex-row justify-center items-center space-around mb-2">
-            <Text className="text-lm font-extrabold text-neutral-900">
+            <Text className="text-xl font-extrabold text-neutral-900">
               {`${statusLabel}`}
             </Text>
             {/*<Text className="text-tm font-extrabold text-neutral-900">
@@ -48,7 +88,7 @@ export default function BottomSheetContent({
       
         <OrderSummaryCard order={order} />
 
-        {courier && (
+        {courier.latitude && (
           <>
             {/*<Text className="mb-1 text-neutral-500">Livreur</Text>*/}
             <CourierCard user={courier} onCall={onCall} onNavigate={onNavigate} />

@@ -8,6 +8,8 @@ import { useSupabaseAuth } from '../../hooks/useSupabaseAuth';
 import { TextField } from '../../components/ui/TextField';
 import { PrimaryButton } from '../../components/ui/PrimaryButton';
 import { MapPin } from 'lucide-react-native';
+import DeliveryAddressCard from 'components/checkout/DeliveryAddressCard';
+import DeliveryAddressModal from 'components/checkout/DeliveryAddressModal';
 
 export function EditProfileScreen({ navigation }: NativeStackScreenProps<MainStackParamList, 'EditProfile'>) {
   const { profile, upsertProfile, user } = useSupabaseAuth();
@@ -24,6 +26,15 @@ export function EditProfileScreen({ navigation }: NativeStackScreenProps<MainSta
       latitude: profile?.latitude ?? undefined,
       longitude: profile?.longitude ?? undefined,
     });
+
+      // Address management
+      const [addressModalVisible, setAddressModalVisible] = useState(false);
+      const [selectedAddress, setSelectedAddress] = useState<{
+        label: string;
+        latitude: number;
+        longitude: number;
+      } | null>({label: profile?.address ?? '', latitude: profile?.latitude ?? 0, longitude: profile?.longitude ?? 0});
+    
 
     const [addressLoading, setAddressLoading] = useState(false);
   
@@ -101,9 +112,9 @@ export function EditProfileScreen({ navigation }: NativeStackScreenProps<MainSta
     setLoading(true);
     const { error } = await upsertProfile({
       full_name: fullName.trim(),
-      address: address.trim(),
-      latitude: coords.latitude,
-      longitude: coords.longitude,
+      address: selectedAddress?.label.trim(),
+      latitude: selectedAddress?.latitude,
+      longitude: selectedAddress?.longitude,
       phone: user.phone,
     });
     setLoading(false);
@@ -120,7 +131,7 @@ export function EditProfileScreen({ navigation }: NativeStackScreenProps<MainSta
             <Text className="text-2xl font-semibold text-neutral-900">Modifier votre profil</Text>
             <View className="mt-6 space-y-5">
               <TextField label="Nom complet" value={fullName} onChangeText={setFullName} />
-              <TextField
+              {/*<TextField
                 label="Adresse"
                 value={address}
                 onChangeText={setAddress}
@@ -128,13 +139,32 @@ export function EditProfileScreen({ navigation }: NativeStackScreenProps<MainSta
                 rightIcon={<MapPin color="#7B3FE4" size={18} />}
                 onRightIconPress={fillAddressFromLocation}
                 loading={addressLoading}
+              />*/}
+              {/** DELIVERY ADDRESS */}
+              <View className="mt-2">
+              <DeliveryAddressCard
+                address={selectedAddress?.label ?? profile?.address}
+                onPress={() => setAddressModalVisible(true)}
               />
-             
+             </View>
             </View>
           </View>
           <PrimaryButton label="Enregistrer" onPress={saveProfile} loading={loading} />
         </View>
       </KeyboardAvoidingView>
+      {/** ADDRESS MODAL */}
+      <DeliveryAddressModal
+        visible={addressModalVisible}
+        onClose={() => setAddressModalVisible(false)}
+        //onSelect={(addr) => setSelectedAddress(addr)}
+        onValidate={(data) => {
+            console.log("Adresse validée :", data);
+            setSelectedAddress({label: data.address, latitude: data.latitude, longitude: data.longitude});
+        }}
+        initialLatitude={selectedAddress?.latitude}
+        initialLongitude={selectedAddress?.longitude}
+        initialAddress={selectedAddress?.label}
+      />
     </SafeAreaView>
   );
 }

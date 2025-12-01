@@ -6,6 +6,7 @@ import {
   Pressable,
   TextInput,
   ScrollView,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Star } from "lucide-react-native";
 
@@ -21,7 +22,8 @@ const FEEDBACK_TAGS = {
     negative: [
       "Colis endommagé",
       "Erreur dans la commande",
-      "Retard de livraison",
+    //  "Retard de livraison",
+      "Je n'ai pas reçu ma commande"
       //"Prix exagéré",
       //"Communication difficile",
       //"Accueil médiocre",
@@ -115,13 +117,18 @@ export function DeliveryDisputeModal({
   return (
     <Modal visible={visible} animationType="slide" transparent
     navigationBarTranslucent={true} statusBarTranslucent={false}
+    onRequestClose={onClose}
+    allowSwipeDismissal={true}
+    onDismiss={onClose}
+    onBlur={onClose}
     >
-      <View className="flex-1 justify-end bg-black/50">
-        <View className="rounded-t-3xl p-5 bg-white max-h-[85%]">
+      <TouchableWithoutFeedback >
+        <View className="flex-1 justify-end bg-black/40">
+          <TouchableWithoutFeedback>
+        <View className="rounded-t-3xl p-5 bg-white max-h-[85%]" style={{paddingBottom:50}}>
           <View className="items-center">
             <View className="w-10 h-1 bg-neutral-300 rounded-full mb-4" />
           </View>
-
           {/* TITLE */}
           <Text className="text-xl font-bold text-neutral-900 mb-1">
             Réclamation
@@ -189,7 +196,9 @@ export function DeliveryDisputeModal({
             <Text className="text-neutral-500">Annuler</Text>
           </Pressable>
         </View>
+        </TouchableWithoutFeedback>
       </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }

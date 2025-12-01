@@ -14,7 +14,7 @@ export default function FinalCostEstimateCard({ estimate, isLoading }: Props) {
     return (
       <Animated.View
         entering={FadeInDown.duration(450)}
-        className="rounded-3xl bg-white p-5 shadow-md mt-4"
+        className="rounded-3xl bg-white p-5 shadow-md mt-2"
         style={{
           shadowColor: '#000',
           shadowOpacity: 0.06,
@@ -37,7 +37,7 @@ export default function FinalCostEstimateCard({ estimate, isLoading }: Props) {
   return (
     <Animated.View
       entering={FadeInDown.delay(200).duration(450).springify()}
-      className="rounded-3xl bg-white p-5 shadow-md mt-4"
+      className="rounded-3xl bg-white p-5 shadow-md"
       style={{
         shadowColor: '#000',
         shadowOpacity: 0.06,

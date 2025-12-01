@@ -70,18 +70,20 @@ export function UserCardBase({ title, user, distanceKm, eta, onCall, onNavigate 
         </View>
 
         {/* BUTTONS FULL WIDTH */}
-        <View className="flex-row mt-4 w-full" style={{ gap: 10 }}>
-          <Pressable
-            onPress={() => onCall(user.phone)}
+        {(onCall || onNavigate) && (
+          <View className="flex-row mt-4 w-full" style={{ gap: 10 }}>
+          { onCall && (
+            <Pressable
+            onPress={() => onCall?.(user.phone)}
             className="flex-1 flex-row items-center justify-center bg-neutral-100 py-3 rounded-xl"
           >
             <Phone size={20} color="#333" />
             <Text className="ml-2 text-sm font-medium">Appeler</Text>
           </Pressable>
-
+          )}
           {onNavigate && (
             <Pressable
-              onPress={() => onNavigate(user)}
+              onPress={() => onNavigate?.(user)}
               className="flex-1 flex-row items-center justify-center bg-[#7B3FE4] py-3 rounded-xl"
             >
               <Navigation size={20} color="white" />
@@ -89,6 +91,7 @@ export function UserCardBase({ title, user, distanceKm, eta, onCall, onNavigate 
             </Pressable>
           )}
         </View>
+        )}
     </View>
     );
 }

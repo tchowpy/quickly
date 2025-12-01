@@ -9,7 +9,7 @@
   - `MainStack` orchestre l'expérience client (`Home`, `ProductDetails`, `Checkout`, `OrderHistory`, `Profile`, `Notifications`, `Terms`) avec des modales (`QuickOrderModal`, `OrderTrackingModal`) déclenchées depuis l'accueil.
   - Les écrans transverses (`OrderTracking`, `Feedback`, `Support`) restent accessibles via le `RootStack`.
 - **Realtime**: Supabase Realtime channels wrap order lifecycle updates and courier GPS tracking. Hooks encapsulate subscriptions (`useRealtimeOrder`).
-- **Location & Maps**: Expo Location obtains foreground permission; `react-native-maps` renders customer & courier positions.
+- **Location & Maps**: Expo Location obtains foreground permission; `expo-maps` renders customer & courier positions.
 - **Theme**: Light theme using Quickly brand colors (#7B3FE4, #3FE47B, neutral grays), reusable card & button components with subtle animations.
 
 ## Backend (Supabase)

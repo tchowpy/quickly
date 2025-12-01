@@ -10,13 +10,15 @@ export function ProviderCardPremiumCompact({
   index,
   onSelect,
   isClosest=false,
-  isSelected=false
+  isSelected=false,
+  buttonTitle="Sélectionner"
 }: {
   provider: any;
   index: number; // classement 0 → 1er, 1 → 2e…
   onSelect: () => void;
   isClosest?: boolean;
   isSelected?: boolean;
+  buttonTitle?: string;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -54,6 +56,9 @@ export function ProviderCardPremiumCompact({
       > 
       <Pressable
         className="w-full flex-row items-center"
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={onSelect}
       >
         {/* AVATAR */}
         <View className="w-12 h-12 rounded-full bg-[#EFE7FF] mr-4 items-center justify-center">
@@ -127,18 +132,17 @@ export function ProviderCardPremiumCompact({
         </Pressable>
         */}
       </Pressable>
-      { !isSelected && (
-      <View className="mt-1 mb-1 w-full flex-row justify-center">
+      {/* !isSelected && (
+      <View className="mt-2 w-full flex-row justify-center">
         <PrimaryButton
-            label="Sélectionner"
+            label={buttonTitle}
             onPress={onSelect}
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
-            //containerClassName="ml-4"
-            
+            containerClassName="w-full"
           />
        </View>
-       )}
+       )*/}
         </View>
     </Animated.View>
   );

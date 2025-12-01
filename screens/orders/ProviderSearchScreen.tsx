@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   StatusBar,
   View,
@@ -9,10 +9,12 @@ import {
   Pressable,
   Image,
   Animated,
-  Dimensions,
-  ScrollView
+  ScrollView,
+  Keyboard,
+  Platform,
+  TouchableWithoutFeedback
 } from "react-native";
-import MapView, { Marker, Polyline, Region } from "react-native-maps";
+import MapView, { Marker, Polyline, Region, MapViewRef } from "components/map/ExpoMapView";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { MainStackParamList, RootStackParamList } from "../../navigation/types";
@@ -31,18 +33,19 @@ import haversine from "haversine-distance";
 import { ProviderCardPremiumCompact } from "components/orders/ProviderCardPremiumCompact";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 
-import polyline from "@mapbox/polyline";
 import { useOrderRealtime } from "hooks/useOrderRealtime";
 import { MapPin } from "lucide-react-native";
 import { useAuthStore } from "store/authStore";
 import { getRouteFromORS } from "services/location/routeService";
+import { getElapsedTime } from "utils/getElapsedTime";
+import { SingleSelectModalFlexible } from "components/ui/SingleSelectModalFlexible";
+import { getOrderMode } from "utils/orderMode";
+import LoadingQuickLy from "components/ui/Loading";
 
 const paymentMethods: Array<{ value: PaymentMethod; label: string; description: string }> = [
   { value: 'cash_on_delivery', label: 'À la livraison', description: 'Réglez en espèces à la réception.' },
   { value: 'mobile_money', label: 'Mobile Money', description: 'Paiement sécurisé via votre opérateur.' },
 ];
-
-const ORS_API_KEY = process.env.EXPO_PUBLIC_ORS_API_KEY;
 
 export function ProviderSearchScreen({
   navigation,
@@ -56,7 +59,7 @@ export function ProviderSearchScreen({
   const { active, history } = useOrderStore();
   const { geoloc } = useAuthStore();
 
-  const { cancelOrder, expireOrder, fetchOrderAccepts, fetchOrders } = useOrders();
+  const { setAcceptOrder, cancelOrder, expireOrder, fetchOrderAccepts, fetchOrders } = useOrders();
   //const [order, setOrder] = useState<any>(active.order);
   const order = useMemo(
       () => active.order && active.order.id === orderId ? active.order : history.find((o) => o.id === orderId) ?? active.order,
@@ -65,29 +68,30 @@ export function ProviderSearchScreen({
 
    useOrderRealtime(order?.id);
   
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapViewRef | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const navigationLocked = useRef(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash_on_delivery');
 
-  const [timer, setTimer] = useState(90);
+  const [timer, setTimer] = useState(900);
+    const [elapsedTime, setElapsedTime] = useState('');
+  
   const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
   const [step, setStep] = useState(1);
   const [modalVisible, setModalVisible] = useState(true);
+    const [showConfirmModal, setShowConfirmModal] = useState(true);
   const [providers, setProviders] = useState<any[]>([]);
-  const [sortedProviders, setSortedProviders] = useState<any[]>([]);
   const [closestId, setClosestId] = useState<string | null>(null);
   const [mode, setMode] = useState<"search" | "choose_provider">("search");
 
   const [radarSize, setRadarSize] = useState(160);
+  const [routeCoords, setRouteCoords] = useState([]);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
+  const lastCenteredCoords = useRef<{ latitude: number; longitude: number; mode: typeof mode | null } | null>(null);
 
   // -------- Position écran pour overlay radar ----------
-  const { width, height } = Dimensions.get("window");
-  const [screenPos, setScreenPos] = useState({ x: width / 2, y: height / 2 });
-
   // -------- Region dynamique --------
   const [region, setRegion] = useState<Region>({
     latitude: order?.latitude ?? 0,
@@ -101,27 +105,65 @@ export function ProviderSearchScreen({
     const [isEstimating, setIsEstimating] = useState(false);
   
     // Address management
-    const [selectedProvider, setSelectedProvider] = useState<UserProfile | null>();
+    const [selectedProvider, setSelectedProvider] = useState<any | null>();
+    const [providerListVisible, setProviderListVisible] = useState(false);
   
     // Submit state
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        const sortedProviders = [...providers].sort(
-        (a, b) => a.distance_km - b.distance_km
-        );
+  const sortedProviders = useMemo(() => {
+    if (!providers.length) return [];
+    return [...providers].sort((a, b) => a.distance_km - b.distance_km);
+  }, [providers]);
 
-        setSortedProviders(sortedProviders);
+  useEffect(() => {
+    if (order?.latitude == null || order?.longitude == null) return;
 
-        const closestId = sortedProviders[0]?.provider_id;
-        setClosestId(closestId);
+    const previous = lastCenteredCoords.current;
+    const coordsChanged =
+      !previous ||
+      Math.abs(previous.latitude - order.latitude) > 0.00001 ||
+      Math.abs(previous.longitude - order.longitude) > 0.00001;
+    const enteringSearch = mode === "search" && previous?.mode !== "search";
 
-        handleSelectProvider({
-            ...sortedProviders[0],
-            _ts: Date.now(),
-        });
+    if (!coordsChanged && !enteringSearch) return;
 
-    }, [providers]);
+    lastCenteredCoords.current = {
+      latitude: order.latitude,
+      longitude: order.longitude,
+      mode,
+    };
+
+    setRegion((prev) => ({
+      latitude: order.latitude ?? prev.latitude,
+      longitude: order.longitude ?? prev.longitude,
+      latitudeDelta: prev.latitudeDelta,
+      longitudeDelta: prev.longitudeDelta,
+    }));
+
+    const timeout = setTimeout(() => {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: order.latitude,
+          longitude: order.longitude,
+          latitudeDelta: region.latitudeDelta,
+          longitudeDelta: region.longitudeDelta,
+        },
+        400
+      );
+    }, 150);
+
+    return () => clearTimeout(timeout);
+  }, [order?.latitude, order?.longitude, mode, region.latitudeDelta, region.longitudeDelta]);
+
+  useEffect(() => {
+    if (!sortedProviders.length) {
+      setClosestId(null);
+      return;
+    }
+    const nextClosestId = sortedProviders[0]?.provider_id ?? null;
+    setClosestId(nextClosestId);
+  }, [sortedProviders]);
 
   // -----------------------------------------------------
   // BROADCAST INIT
@@ -146,41 +188,37 @@ export function ProviderSearchScreen({
   };
 
   useEffect(() => {
-console.log('Order status changed:', order?.status);
-//console.log('Order loaded:', orderLoaded);
-    //if ((!orderLoaded && ['created','pending_broadcast','broadcasted'].includes(order?.status ?? "")) || !order) return;
     if (!order) return;
 
     const status = order.status;
-    switch (status) {
-    case "pending_broadcast":
-      broadcastOrder();
-      setMode("search");
-      setStep(1);
-      break;
-
-    case "broadcasted":
-      setMode("search");
-      setStep(2);
-      break;
-
-    case "accepted":
-      setStep(3);
-      loadProviders();
-      setMode("choose_provider");
-      setRegion((r) => ({
+    if (["created", "pending_broadcast", "broadcasted", "accepted", "confirmed"].includes(status)) {
+      switch (status) {
+        case "pending_broadcast":
+          broadcastOrder();
+          setMode("search");
+          setStep(1);
+          break;
+        case "broadcasted":
+          setMode("search");
+          setStep(2);
+          break;
+        case "accepted":
+          setStep(3);
+          loadProviders();
+          setMode("choose_provider");
+          setRegion((r) => ({
             ...r,
             latitudeDelta: 0.05,
             longitudeDelta: 0.05,
-        }));
-      break;
-
-    default:
-      navigation.reset({ index: 0, routes: [{ name: "Main" }] });
-      break;
-  }
-    
-
+          }));
+          break;
+        case "confirmed":
+          // No action needed
+          break;
+      }
+    } else {
+      navigation.reset({ index: 0, routes: [{ name: "Main" }] }); // Remplacez "Root" par le nom correct de la route principale dans MainStackParamList
+    }
   }, [order?.status]);
 
   // -----------------------------------------------------
@@ -190,11 +228,16 @@ console.log('Order status changed:', order?.status);
 
     const fetch = async () => {
         if (mode === "choose_provider") return;
+        if (!order) return;
 
         if (timer <= 0) {
         //handleExpire("Temps écoulé. Aucun prestataire trouvé.");
         return;
         }
+
+        const elapsedTime = getElapsedTime(order?.created_at)
+
+        setElapsedTime(elapsedTime)
 
         if (timer < 90 && timer >= 60) {
         setRadarSize(120);
@@ -227,24 +270,14 @@ console.log('Order status changed:', order?.status);
 
   }, [timer, mode]);
 
-  // -----------------------------------------------------
-  // UPDATE RADAR SCREEN POSITION
-  // -----------------------------------------------------
-
-useEffect(() => {
-    if (!mapRef.current || !order) return;
-
-    setTimeout(() => {
-        if (!mapRef.current || !order) return;
-        mapRef.current
-        .pointForCoordinate({
-            latitude: order.latitude ?? 0,
-            longitude: order.longitude ?? 0,
-        })
-        .then((p) => setScreenPos({ x: p.x, y: p.y }))
-        .catch(() => {});
-    }, 50);
-}, [region]);
+    useEffect(() => {
+      const id = setInterval(() => {
+        if (mode === "search" && order?.status !== 'accepted'){
+          loadProviders();
+        } 
+      }, 10000);
+      return () => clearInterval(id);
+    }, []);
 
   // -----------------------------------------------------
   // REALTIME ACCEPTED
@@ -273,40 +306,54 @@ useEffect(() => {
             { latitude: provider.latitude, longitude: provider.longitude },
             { latitude: order.latitude ?? 0, longitude: order.longitude ?? 0 }
         );
-
-        const estimate = computeFallbackEstimate(
+        const dist =  Number((distance / 1000).toFixed(2))
+       // console.log('distance: ',dist)
+        const eta = computeFallbackEstimate(
             order.unit_price ?? 0,
             order.quantity,
-            Number((distance / 1000).toFixed(2))
+            dist
         )
 
         return {
             ...provider,
-            distance_km: Number((distance / 1000).toFixed(2)),
-            total_amount: estimate?.total_amount
+            distance_km: dist,
+            total_amount: eta?.total_amount,
+            estimate: eta
         };
     });
     setProviders(providersWithDistance);
   };
 
-  const handleSelectProvider = async (provider: UserProfile) => {
-    if (!order) return;
-    try {
+  const handleSelectProvider = useCallback(
+    async (provider: UserProfile | null | undefined) => {
+      if (!order || !provider) return;
+      try {
+        setIsEstimating(true);
         setSelectedProvider(provider);
-        const estimate = await fetchEstimate(provider)
-        setEstimate(estimate)
-        getRouteFromORS(
-            {lat: provider.latitude, lng: provider.longitude},
-            {lat: order.latitude, lng: order.longitude}
+
+        const route = await getRouteFromORS(
+          { lat: provider.latitude, lng: provider.longitude },
+          { lat: order.latitude, lng: order.longitude }
         );
-    } catch (error) {
-        const estimate = computeFallbackEstimate(order.unit_price ?? 0, order.quantity, provider.distance_km)
-        setEstimate(estimate)
-    } finally {
+        setRouteCoords(route ?? []);
+      } catch (error) {
+        console.log("Select provider error", error);
+      } finally {
         setIsEstimating(false);
-    }
-    
-  };
+      }
+    },
+    [order]
+  );
+
+  useEffect(() => {
+    if (selectedProvider?.id) return;
+    if (!sortedProviders.length) return;
+
+    void handleSelectProvider({
+      ...sortedProviders[0],
+      _ts: Date.now(),
+    });
+  }, [handleSelectProvider, selectedProvider?.id, sortedProviders]);
 
   useEffect(() => {
     const channel = supabase
@@ -331,14 +378,27 @@ useEffect(() => {
   const handleCancel = async (msg: string) => {
     if (navigationLocked.current) return;
     navigationLocked.current = true;
-
+console.log("handleCancel")
     try {
+      setIsSubmitting(true);
       await cancelOrder(orderId, msg);
-    } catch (e) {}
+    } catch (e) {} finally { setIsSubmitting(false);}
 
     setTimeout(() => {
       navigation.reset({ index: 0, routes: [{ name: "Main" }] });
     }, 300);
+  };
+
+    // -----------------------------------------------------
+  // CANCEL SAFE
+  // -----------------------------------------------------
+  const handleMarkAccept = async (msg: string) => {
+    if (navigationLocked.current) return;
+    navigationLocked.current = true;
+
+    try {
+      await setAcceptOrder(orderId, msg);
+    } catch (e) {}
   };
 
     // -----------------------------------------------------
@@ -367,7 +427,7 @@ useEffect(() => {
             Alert.alert("Erreur", "Veuillez sélectionner un prestataire.");
             return;
         }
-        if (!estimate) {
+        if (!selectedProvider.estimate) {
             Alert.alert("Erreur", "Estimation des frais manquante.");
             return;
         }
@@ -393,8 +453,9 @@ useEffect(() => {
                 metadata: { 
                     provider_id:selectedProvider.id, 
                     distance_km: selectedProvider.distance_km,
-                    total_amount: estimate.total_amount,
-                    delivery_fee: estimate.delivery_fee
+                    total_amount: selectedProvider.estimate.total_amount,
+                    delivery_fee: selectedProvider.estimate.delivery_fee,
+                    commission_amount: selectedProvider.commission_amount
                 },
             },
             });
@@ -474,63 +535,14 @@ useEffect(() => {
     ]);
     */}
 
-    const [routeCoords, setRouteCoords] = useState([]);
-    
     const clientPosition = geoloc;
 
-const computeRoute = async (fromLat, fromLng, toLat, toLng) => {
-  try {
-    const apiKey = ORS_API_KEY;
-
-    const response = await fetch(
-      "https://api.openrouteservice.org/v2/directions/driving-car",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: apiKey,
-        },
-        body: JSON.stringify({
-          coordinates: [
-            [fromLng, fromLat],
-            [toLng, toLat],
-          ],
-        }),
-      }
-    );
-
-    const json = await response.json();
-
-    if (!json.routes || !json.routes[0]) {
-      console.log("❌ ORS: aucune route trouvée");
-      return;
-    }
-
-    const encoded = json.routes[0].geometry;
-
-    // ➜ Décodage polyline5
-    const decoded = polyline.decode(encoded);
-
-    // ➜ Convertir en tableau { latitude, longitude }
-    const coords = decoded.map(([lat, lng]) => ({
-      latitude: lat,
-      longitude: lng,
-    }));
-
-    setRouteCoords(coords);
-  } catch (err) {
-    console.log("Route calc error", err);
-  }
-};
-   
   // -----------------------------------------------------
   // IF order missing
   // -----------------------------------------------------
-  if (!order) {
+  if (!order || getOrderMode(order.status) !== 'search') {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
-        <Text>Chargement…</Text>
-      </SafeAreaView>
+      <LoadingQuickLy/>
     );
   }
 
@@ -540,75 +552,81 @@ const computeRoute = async (fromLat, fromLng, toLat, toLng) => {
   return (
     <SafeAreaView className="flex-1 bg-white">
       {/* MAP */}
-      <View style={{ height: "65%", marginTop: -40}}>
-        <MapView ref={mapRef} style={{ flex: 1 }} region={region}>
+      <View style={{ height: "85%", marginTop: -40, position: "relative" }}>
+        <MapView ref={mapRef} style={{ flex: 1 }} region={region} initialRegion={region}>
+          {/* 📍 Adresse de livraison */}
+          <Marker
+            coordinate={{
+              latitude: order.latitude ?? 0,
+              longitude: order.longitude ?? 0,
+            }}
+            title="Adresse de livraison"
+            pinColor="#7B3FE4"
+          />
+
+          {/* 👤 Position du client */}
+          {clientPosition && (
+            <Marker
+              coordinate={clientPosition}
+              title="Votre position"
+              pinColor="green"
+            />
+          )}
+
           {mode === "choose_provider" && (
             <>
-             {/* 📍 Adresse de livraison */}
-            <Marker
-                coordinate={{
-                latitude: order.latitude ?? 0,
-                longitude: order.longitude ?? 0,
-                }}
-                title="Adresse de livraison"
-                pinColor="#7B3FE4"
-            />
-
-            {/* 👤 Position du client */}
-            {clientPosition && (
+              {/* 🏪 Providers ayant accepté */}
+              {providers.map((p) => (
                 <Marker
-                coordinate={clientPosition}
-                title="Votre position"
-                pinColor="green"
-                />
-            )}
-
-            {/* 🏪 Providers ayant accepté */}
-            {providers.map((p) => (
-                <Marker
-                key={p.provider_id}
-                coordinate={{
+                  key={p.provider_id}
+                  coordinate={{
                     latitude: p.latitude,
                     longitude: p.longitude,
-                }}
-                title={p.users?.full_name ?? "Prestataire"}
-                pinColor={selectedProvider?.id === p.provider_id ? "blue" : "orange"}
+                  }}
+                  title={"Fournisseur"}
+                  description={p.user?.full_name}
+                  pinColor={selectedProvider?.id === p.provider_id ? "blue" : "orange"}
                 />
-            ))}
+              ))}
 
-            {/* Itinéraire */}
-            {routeCoords.length > 0 && (
+              {/* Itinéraire */}
+              {routeCoords.length > 0 && (
                 <Polyline
-                coordinates={routeCoords}
-                strokeWidth={5}
-                strokeColor="#7B3FE4"
+                  coordinates={routeCoords}
+                  strokeWidth={5}
+                  strokeColor="#7B3FE4"
                 />
-            )}
+              )}
             </>
           )}
         </MapView>
-      </View>
 
-      {/* RADAR OVERLAY */}
-        { mode === "search" && (
-        <View
+        {/* RADAR OVERLAY */}
+        {mode === "search" && (
+          <View
             pointerEvents="none"
             style={{
-            position: "absolute",
-            left: screenPos.x - radarSize / 2,
-            top: screenPos.y - radarSize / 2,
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              justifyContent: "center",
+              alignItems: "center",
             }}
-        >
+          >
             <RadarPulse size={radarSize} color="rgba(123,63,228,0.35)" />
-        </View>
+          </View>
         )}
+      </View>
+
       {/* MODAL */}
       {modalVisible && (
         
 <BottomSheet
   ref={bottomSheetRef}
   index={0}                 // 0 = mini, 1 = medium, 2 = full
-  snapPoints={['50%', '65%', '85%']}   // 👈 MODAL OCCUPE 1/3 puis plus
+  snapPoints={['65%', '65%', '85%']}   // 👈 MODAL OCCUPE 1/3 puis plus
   enablePanDownToClose={false}
   backgroundStyle={{
     backgroundColor: 'white',
@@ -621,7 +639,7 @@ const computeRoute = async (fromLat, fromLng, toLat, toLng) => {
   }}
 >
   <BottomSheetScrollView
-    style={{ padding: 20 }}
+    style={{ padding: 20, }}
     showsVerticalScrollIndicator={false}
   >
     {/* TITRE */}
@@ -629,15 +647,32 @@ const computeRoute = async (fromLat, fromLng, toLat, toLng) => {
     <Text className="text-xl font-extrabold text-neutral-900">
       {mode === "search"
         ? `Recherche en cours…`
-        : `Prestataires disponibles`}
+        : `${sortedProviders.length} Fournisseur(s) disponible(s)`}
     </Text>
     <Text className="text-xl font-extrabold text-neutral-900">
       {mode === "search"
-        ? `00m:${timer}s`
+        ? `${elapsedTime}`
         : ``}
     </Text>
     </View>
 
+ {mode === "search" && sortedProviders.length > 0 &&(
+  <>
+  <View className="flex-row justify-between items-center mt-4">
+    <Text className="text-2xl font-extrabold text-neutral-900">{sortedProviders.length} Fournisseur(s)</Text>
+    <PrimaryButton
+          label={`Stopper la recherche`}
+          onPress={() => {
+            handleMarkAccept('Recherche stoppée par le client')
+          }}
+          loading={isSubmitting}
+          disabled={isSubmitting}
+          gradient={["#7B3FE4","#7B3FE4"]}
+          //containerClassName="mt-4"
+        />
+  </View>
+  </>
+ )}
     {/* TIMELINE */}
     {/*mode === "search" && (
         <View className="mt-6">
@@ -647,23 +682,23 @@ const computeRoute = async (fromLat, fromLng, toLat, toLng) => {
     {/* 🚀 LISTE DES PROVIDERS */}
     {mode === "choose_provider" && (
       <>
-        <Text className="mt-2 text-base font-semibold text-neutral-700"></Text>
-        {/**
+        <Text className="mt-1 text-base font-semibold text-neutral-700"></Text>
+        {
         <ProviderCardPremiumCompact
           key={selectedProvider?.id}
+          buttonTitle={`Voir plus de fournisseurs`}
           provider={selectedProvider}
           index={1}
           isClosest={selectedProvider?.id === closestId}
-          isSelected={false}
+          isSelected={true}
           onSelect={() => {
-            handleSelectProvider({
-              ...item,
-              _ts: Date.now(),
-            });
+            setShowConfirmModal(true)
+            //if (sortedProviders.length > 0 ) setProviderListVisible(true)
           }}
+   
         />
-         */}
-        {sortedProviders.map((item, index) => (
+         }
+        {/*ortedProviders.map((item, index) => (
           <ProviderCardPremiumCompact
             key={item.id}
             provider={item}
@@ -677,7 +712,9 @@ const computeRoute = async (fromLat, fromLng, toLat, toLng) => {
              });
             }}
           />
-        ))}
+        ))*/}
+
+         {selectedProvider && (<FinalCostEstimateCard estimate={selectedProvider.estimate} isLoading={isEstimating} />)}
       </>
     )}
 
@@ -713,9 +750,8 @@ const computeRoute = async (fromLat, fromLng, toLat, toLng) => {
     {/* PRICING + PAYMENT */}
     {mode === "choose_provider" && selectedProvider && (
       <>
-        <FinalCostEstimateCard estimate={estimate} isLoading={isEstimating} />
-
-        <View className="rounded-3xl bg-white p-4 shadow-md mt-4">
+       
+        <View className="rounded-3xl bg-white p-4 shadow-md mt-2">
           <Text className="text-sm font-medium text-neutral-500">
             Mode de paiement
           </Text>
@@ -741,34 +777,107 @@ const computeRoute = async (fromLat, fromLng, toLat, toLng) => {
             ))}
           </View>
         </View>
-        <View className="mt-4">  
+
         <PrimaryButton
-          label={isEstimating ? "Calcul des frais..." : `Confirmer ${selectedProvider.full_name ?? ""}`}
-          onPress={handleConfirmProvider()}
-          loading={isSubmitting}
-          disabled={isEstimating || isSubmitting || !estimate}
-          //className="mt-4"
-        />
-        </View>
+                label={isEstimating ? "Calcul des frais..." : `Confirmer ${selectedProvider?.full_name ?? ""}`}
+                onPress={handleConfirmProvider()}
+                loading={isSubmitting}
+                disabled={isEstimating || isSubmitting}
+                containerClassName="mt-4"
+              />
+       
       </>
     )}
 
     {/* CANCEL ALWAYS VISIBLE */}
-    <View className="mt-4  mb-20">
     <PrimaryButton
       label="Annuler"
       gradient={["#E57373", "#EF5350"]}
       textClassName="text-white"
       onPress={() => handleCancel("Commande annulée.")}
       loading={isSubmitting}
-      //className="mt-6 mb-20"
+      containerClassName="mt-2 mb-20"
     />
-    </View>
   </BottomSheetScrollView>
 </BottomSheet>
 
 )}
 
+    {/* Confirmation Button as a floating overlay instead of Modal */}
+    {mode === "choose_provider" && !!selectedProvider && (
+     <Modal
+      visible={showConfirmModal}
+      animationType="slide"
+      transparent
+      navigationBarTranslucent={true}
+      statusBarTranslucent={false}
+      onRequestClose={() => setShowConfirmModal(false)}
+      allowSwipeDismissal={true}
+      onDismiss={() => setShowConfirmModal(false)}
+      onBlur={() => setShowConfirmModal(false)}
+    >
+      <TouchableWithoutFeedback onPress={() => setShowConfirmModal(false)}>
+        <View className="flex-1 justify-end bg-black/5">
+          <TouchableWithoutFeedback>
+            <View className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-2 pt-6 shadow-xl" style={{paddingBottom:50}}>
+              <PrimaryButton
+                label={isEstimating ? "Calcul des frais..." : `Confirmer ${selectedProvider?.full_name ?? ""}`}
+                onPress={handleConfirmProvider()}
+                loading={isSubmitting}
+                disabled={isEstimating || isSubmitting}
+              />
+              { sortedProviders.length > 1 &&(
+                <PrimaryButton
+                label={`Voir plus de fournisseurs`}
+                onPress={() => {
+                 // setShowConfirmModal(false)
+                  setProviderListVisible(true)
+                }}
+                gradient={["#7B3FE4", "#7B3FE4"]}
+                textClassName="text-white"
+                containerClassName="mt-4"
+              />
+              )}
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+    )}
+
+          <SingleSelectModalFlexible
+            visible={providerListVisible}
+            title="Choisir un fournisseur"
+            items={sortedProviders}
+            //horizontal
+            selectedId={null}
+            onSelect={(providers) => {
+              setProviderListVisible(false);
+                handleSelectProvider({
+                    ...providers,
+                    _ts: Date.now(),
+                });
+            }}
+            onClose={() => setProviderListVisible(false)}
+            renderItem={(item, index) => (
+              <ProviderCardPremiumCompact
+                key={item.id}
+                provider={item}
+                index={index}
+                isClosest={item.id === closestId}
+                isSelected={item.id === selectedProvider?.id}
+                onSelect={() => {
+                setProviderListVisible(false);
+
+                handleSelectProvider({
+                    ...item,
+                    _ts: Date.now(),
+                });
+                }}
+              />
+
+            )}
+          />
     </SafeAreaView>
   );
 }
@@ -835,4 +944,3 @@ function StepLine({ currentStep }: { currentStep: number }) {
     </View>
   );
 }
-

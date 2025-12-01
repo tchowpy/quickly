@@ -83,7 +83,7 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<MainStackParam
   );
 
   const activeTrackings = useMemo(
-      () => trackingHistory.filter((t) => ['pending','assigned','retrieved','in_transit','at_destination','delivered'].includes(t.status)),
+      () => trackingHistory.filter((t) => ['pending','assigned','retrieved','in_transit','at_destination'].includes(t.status)),
       [trackingHistory]
   );
 
@@ -394,6 +394,7 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<MainStackParam
               keyExtractor={(c) => c.id}
               renderItem={({ item }) => (
                 <CategoryPill
+                  key={item.id}
                   category={item}
                   icon={renderCategoryIcon(item.name)}
                   active={categoryFilter === item.id}
@@ -470,7 +471,7 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<MainStackParam
         keyExtractor={(item) => item.type}
         renderItem={renderScrollItem}
         showsVerticalScrollIndicator={false}
-       // contentContainerStyle={{ paddingBottom: 80 }}
+        contentContainerStyle={{ paddingBottom: 10 }}
       />
       
       {/* MODALS */}
@@ -492,6 +493,7 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<MainStackParam
         onClose={() => setOrderListVisible(false)}
         renderItem={(activeOrder, isSelected) => (
           <ActiveOrderCard
+            key={activeOrder.id}
             order={activeOrder}
             onPress={(activeOrder) => {
           setOrderListVisible(false);
@@ -522,6 +524,7 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<MainStackParam
         renderItem={(activeTracking, isSelected) => {
          //console.log("activeTracking.order.client: ", activeTracking.order.client);
           return <DeliveryTaskCardPro
+            key={activeTracking.id}
             trackingInfos={activeTracking}
             onAccept={  (courierPos) => {
               handleDeliveryAccept(activeTracking.order.id, activeTracking.id.toString(),activeTracking.user.id, courierPos.latitude,courierPos.longitude);
@@ -632,7 +635,7 @@ return (
         <View className="flex-1 bg-black/30" />
       </TouchableWithoutFeedback>
 
-      <View className="absolute inset-x-0 bottom-0 h-[90%] rounded-t-3xl bg-white shadow-xl">
+      <View className="absolute inset-x-0 bottom-0 h-[90%] rounded-t-3xl bg-white shadow-xl" style={{paddingBottom:50}}>
         <KeyboardAwareScrollView
           enableOnAndroid
           extraScrollHeight={80}  

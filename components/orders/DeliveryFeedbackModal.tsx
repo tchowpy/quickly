@@ -6,6 +6,7 @@ import {
   Pressable,
   TextInput,
   ScrollView,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Star } from "lucide-react-native";
 
@@ -129,9 +130,14 @@ export function DeliveryFeedbackModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}
     navigationBarTranslucent={true} statusBarTranslucent={false}
+    allowSwipeDismissal={true}
+    onDismiss={onClose}
+    onBlur={onClose}
     >
-      <View className="flex-1 justify-end bg-black/50">
-        <View className="rounded-t-3xl p-5 bg-white max-h-[85%]">
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View className="flex-1 justify-end bg-black/40">
+          <TouchableWithoutFeedback>
+        <View className="rounded-t-3xl p-5 bg-white max-h-[85%]" style={{paddingBottom:50}}>
           <View className="items-center">
             <View className="w-10 h-1 bg-neutral-300 rounded-full mb-4" />
           </View>
@@ -239,7 +245,9 @@ export function DeliveryFeedbackModal({
             <Text className="text-neutral-500">Annuler</Text>
           </Pressable>
         </View>
+        </TouchableWithoutFeedback>
       </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }

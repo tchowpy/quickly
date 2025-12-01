@@ -71,7 +71,7 @@ export function QuickOrderModal({ visible, onClose, onConfirm }: QuickOrderModal
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} navigationBarTranslucent={true} statusBarTranslucent={false}>
       <View className="flex-1 justify-end bg-black/40">
-        <View className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-8 pt-6 shadow-xl">
+        <View className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-8 pt-6 shadow-xl" style={{paddingBottom:50}}>
           <View className="mb-4 h-1 w-12 self-center rounded-full bg-neutral-300" />
           <Text className="text-2xl font-semibold text-neutral-900">Nouvelle commande</Text>
           <Text className="mt-2 text-sm text-neutral-500">
